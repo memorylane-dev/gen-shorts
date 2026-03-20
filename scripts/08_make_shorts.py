@@ -20,10 +20,16 @@ import tempfile
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 
-SUBTITLE_STYLE = "FontName=AppleGothic,FontSize=10,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=2,Alignment=2,MarginV=40"
+SUBTITLE_STYLE = "FontName=BM Dohyeon,FontSize=12,PrimaryColour=&H00FFFFFF,BackColour=&H80000000,BorderStyle=4,Outline=1,OutlineColour=&H00000000,Shadow=0,Alignment=2,MarginV=40"
 GRID_DIVISIONS = 10  # 기준선 분할 수
 OUTPUT_WIDTH = 1080
 OUTPUT_HEIGHT = 1920
+
+# 페이드 효과 설정 (초)
+FADE_IN_VIDEO = 0.3   # 영상 페이드인
+FADE_OUT_VIDEO = 0.5   # 영상 페이드아웃
+FADE_IN_AUDIO = 0.2   # 오디오 페이드인
+FADE_OUT_AUDIO = 0.4   # 오디오 페이드아웃
 
 LANGUAGES = [
     ("nosub", None, "자막 없음"),
@@ -116,11 +122,21 @@ def parse_clips_file(path):
 
 
 def encode_clip(input_video, clip_ss, clip_t, output_path, srt_path, crop_params):
-    """단일 클립 인코딩"""
+    """단일 클립 인코딩 (fade in/out 포함)"""
     cw, ch, cx, cy = crop_params
     scale_pad = build_scale_pad_filter(cw, ch)
+    duration = ts_to_sec(clip_t)
+    clip_start = ts_to_sec(clip_ss)
 
     if srt_path:
+        # 자막 있을 때: -ss를 -i 뒤에 배치 (타임스탬프 보존 → 자막 매칭)
+        # 필터 체인이 파일 시작부터 처리되므로 fade/afade에 절대 타임스탬프 사용
+        fade_out_start = clip_start + duration - FADE_OUT_VIDEO
+        fade_filter = (
+            f"fade=t=in:st={clip_start}:d={FADE_IN_VIDEO},"
+            f"fade=t=out:st={fade_out_start}:d={FADE_OUT_VIDEO}"
+        )
+
         tmpdir = tempfile.mkdtemp(prefix="gshorts_")
         tmp_srt = os.path.join(tmpdir, "subs.srt")
         os.symlink(os.path.abspath(srt_path), tmp_srt)
@@ -129,22 +145,54 @@ def encode_clip(input_video, clip_ss, clip_t, output_path, srt_path, crop_params
         vf = (
             f"crop={cw}:{ch}:{cx}:{cy},"
             f"{scale_pad},"
+            f"{fade_filter},"
             f"subtitles={srt_escaped}:force_style='{SUBTITLE_STYLE}'"
         )
-    else:
-        tmpdir = None
-        vf = f"crop={cw}:{ch}:{cx}:{cy},{scale_pad}"
 
-    cmd = [
-        "ffmpeg", "-y",
-        "-i", input_video,
-        "-ss", clip_ss,
-        "-t", clip_t,
-        "-vf", vf,
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-        "-c:a", "aac", "-b:a", "128k",
-        output_path
-    ]
+        afade_out_start = clip_start + duration - FADE_OUT_AUDIO
+        af = (
+            f"afade=t=in:st={clip_start}:d={FADE_IN_AUDIO},"
+            f"afade=t=out:st={afade_out_start}:d={FADE_OUT_AUDIO}"
+        )
+
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", input_video,
+            "-ss", clip_ss,
+            "-t", clip_t,
+            "-vf", vf,
+            "-af", af,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-c:a", "aac", "-b:a", "128k",
+            output_path
+        ]
+    else:
+        # 자막 없을 때: -ss를 -i 앞에 배치 (빠른 탐색, 타임스탬프 0부터)
+        tmpdir = None
+        fade_out_start = max(0, duration - FADE_OUT_VIDEO)
+        fade_filter = (
+            f"fade=t=in:st=0:d={FADE_IN_VIDEO},"
+            f"fade=t=out:st={fade_out_start}:d={FADE_OUT_VIDEO}"
+        )
+        vf = f"crop={cw}:{ch}:{cx}:{cy},{scale_pad},{fade_filter}"
+
+        afade_out_start = max(0, duration - FADE_OUT_AUDIO)
+        af = (
+            f"afade=t=in:st=0:d={FADE_IN_AUDIO},"
+            f"afade=t=out:st={afade_out_start}:d={FADE_OUT_AUDIO}"
+        )
+
+        cmd = [
+            "ffmpeg", "-y",
+            "-ss", clip_ss,
+            "-i", input_video,
+            "-t", clip_t,
+            "-vf", vf,
+            "-af", af,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-c:a", "aac", "-b:a", "128k",
+            output_path
+        ]
 
     result = subprocess.run(cmd, capture_output=True, text=True)
 

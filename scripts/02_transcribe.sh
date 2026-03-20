@@ -15,7 +15,7 @@ if [ -d ".venv" ]; then
   source .venv/bin/activate
 fi
 
-python3 << 'PYEOF'
+python3 - "$AUDIO_FILE" "$OUTPUT_NAME" << 'PYEOF'
 import mlx_whisper
 import sys, os
 
@@ -68,4 +68,3 @@ print(f"SRT 저장: {srt_path}")
 print(f"TXT 저장: {txt_path}")
 print(f"총 {len(result['segments'])}개 세그먼트 추출 완료")
 PYEOF
-"$AUDIO_FILE" "$OUTPUT_NAME"
