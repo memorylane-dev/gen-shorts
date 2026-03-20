@@ -1,0 +1,25 @@
+# 영상/오디오
+*.mp4
+*.m4a
+*.mp3
+*.wav
+*.webm
+*.mkv
+
+# 이미지/썸네일
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.gif
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
+
+# 임시 파일
+*.tmp
