@@ -20,7 +20,7 @@ import tempfile
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 
-SUBTITLE_STYLE = "FontName=AppleMyungjo,FontSize=12,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=2,Alignment=2,MarginV=40"
+SUBTITLE_STYLE = "FontName=AppleGothic,FontSize=10,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=2,Alignment=2,MarginV=40"
 GRID_DIVISIONS = 10  # 기준선 분할 수
 OUTPUT_WIDTH = 1080
 OUTPUT_HEIGHT = 1920

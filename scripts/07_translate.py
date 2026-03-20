@@ -94,11 +94,54 @@ LANG_NAMES = {
 }
 
 
+def parse_time_to_sec(t):
+    """HH:MM:SS,mmm 또는 HH:MM:SS 형식을 초 단위로 변환"""
+    t = t.replace(",", ".").strip()
+    parts = t.split(":")
+    if len(parts) == 3:
+        return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+    elif len(parts) == 2:
+        return int(parts[0]) * 60 + float(parts[1])
+    return float(t)
+
+
+def parse_clips(clips_path):
+    """clips.txt에서 클립 시간 범위를 파싱"""
+    clips = []
+    with open(clips_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split(",")
+            start = parse_time_to_sec(parts[0])
+            duration = parse_time_to_sec(parts[1])
+            clips.append((start, start + duration))
+    return clips
+
+
+def filter_entries_by_clips(entries, clips):
+    """클립 시간 범위에 해당하는 자막만 필터링"""
+    filtered = []
+    for entry in entries:
+        # timing에서 시작 시간 추출: "00:16:13,000 --> 00:16:15,000"
+        m = re.match(r"(\d{2}:\d{2}:\d{2}[,\.]\d{3})", entry["timing"])
+        if not m:
+            continue
+        entry_start = parse_time_to_sec(m.group(1))
+        for clip_start, clip_end in clips:
+            if clip_start <= entry_start <= clip_end:
+                filtered.append(entry)
+                break
+    return filtered
+
+
 def main():
     parser = argparse.ArgumentParser(description="SRT 자막 번역")
     parser.add_argument("--srt", "-s", required=True, help="한국어 SRT 파일")
     parser.add_argument("--langs", "-l", default="en,es", help="번역할 언어 코드 (쉼표 구분, 기본: en,es)")
     parser.add_argument("--outdir", "-o", help="출력 디렉토리 (기본: SRT 파일과 같은 위치)")
+    parser.add_argument("--clips", "-c", help="clips.txt 파일 (지정 시 클립 구간만 번역)")
     args = parser.parse_args()
 
     outdir = args.outdir or os.path.dirname(args.srt) or "."
@@ -106,6 +149,11 @@ def main():
 
     entries = parse_srt(args.srt)
     print(f"원본 자막: {len(entries)}개 세그먼트")
+
+    if args.clips:
+        clips = parse_clips(args.clips)
+        entries = filter_entries_by_clips(entries, clips)
+        print(f"클립 구간 자막: {len(entries)}개 세그먼트 ({len(clips)}개 클립)")
 
     langs = [l.strip() for l in args.langs.split(",")]
 
