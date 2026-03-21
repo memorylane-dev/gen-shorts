@@ -53,6 +53,128 @@ source .venv/bin/activate  # 매 세션 시작 시 활성화
 **절대로 사용자 확인 없이 다음 단계로 넘어가지 말 것.**
 **이전 영상에서 같은 설정을 사용했더라도 매번 확인을 받아야 한다. "이전과 동일" 판단을 임의로 하지 말 것.**
 
+## Single Short CLI (Beta)
+
+기존 `01~08` 스크립트는 그대로 유지하면서, **한 번에 short 하나를 spec으로 관리하는 새 CLI**를 추가했다.
+앞으로는 `clips.txt` 여러 줄 대신 `short.json` 하나를 기준으로 빌드할 수 있다.
+
+- short 하나 = spec 파일 하나
+- 여러 개를 만들고 싶으면 spec 파일을 여러 개 두면 된다
+- 번역 target은 언어(`en`, `es`)가 아니라 국가/로캘(`KR`, `US`, `MX`) 기준으로 선택한다
+- 같은 언어를 쓰는 국가가 여러 개여도 출력 폴더는 국가별로 분리된다
+- spec 안에 `publish.title`, `publish.description`, `publish.tags` 같은 업로드 메타데이터를 함께 저장할 수 있다
+
+예시 spec: [`short.example.json`](/Users/shlee/Developments/gen-shorts/short.example.json)
+
+지원 target 보기:
+
+```bash
+python3 ./scripts/gshorts.py list-targets
+```
+
+지원 preset 보기:
+
+```bash
+python3 ./scripts/gshorts.py list-presets
+```
+
+interactive spec 생성:
+
+```bash
+python3 ./scripts/gshorts.py init-short --project-dir "projects/프로젝트명"
+```
+
+brief 한 줄로 spec 초안 생성:
+
+```bash
+python3 ./scripts/gshorts.py draft-short \
+  --project-dir "projects/프로젝트명" \
+  --brief "위아래 분할로 로키 드립이랑 성대모사를 번갈아 보여주고 미국/멕시코용 자막과 자막없는 버전도 같이 만들어줘"
+```
+
+clip 후보 보기:
+
+```bash
+python3 ./scripts/gshorts.py list-clips \
+  --project-dir "projects/프로젝트명" \
+  --brief "로키 성대모사 위주로"
+```
+
+spec 요약 보기:
+
+```bash
+python3 ./scripts/gshorts.py describe-short \
+  --spec "projects/프로젝트명/shorts/my_short.json"
+```
+
+`init-short`가 도와주는 것:
+
+- 프로젝트 안의 `clips.txt` 후보를 자동 탐색
+- `clip_subtitles_review.txt`가 있으면 대사 미리보기와 함께 clip 선택
+- 자연어 brief를 먼저 받아 preset / target / clip 후보를 추천
+- preset 설명을 보여주며 선택
+- 국가/로캘 target을 번호 또는 코드로 선택
+- upload title / description / tags / notes를 spec에 저장
+
+`draft-short`가 해주는 것:
+
+- brief 문장에서 split/stitch/headline 같은 편집 의도 추론
+- country/locale target 추천
+- clip 후보 관련도 점수 기반 추천
+- spec 초안을 바로 파일로 저장
+
+spec 하나 빌드:
+
+```bash
+python3 ./scripts/gshorts.py build-short \
+  --spec "projects/프로젝트명/shorts/my_short.json"
+```
+
+요약을 이미 확인했다면:
+
+```bash
+python3 ./scripts/gshorts.py build-short \
+  --spec "projects/프로젝트명/shorts/my_short.json" \
+  --yes
+```
+
+`build-short` 동작:
+
+- 빌드 전에 short 요약과 예상 길이를 항상 보여주고 확인을 받음
+- 예상 길이가 길면 warning을 표시
+- short spec에서 클립/포맷/runtime 파일을 자동 생성
+- 필요한 번역 자막이 이미 있으면 재사용
+- 필요한 번역 자막이 없으면 누락된 언어만 생성
+- 최종 렌더는 내부적으로 `08_make_shorts.py`를 호출
+- `_runtime/resolved_short.json`에 실제 빌드에 사용된 resolved manifest를 저장
+
+샘플 spec:
+
+- [`sample_short.json`](/Users/shlee/Developments/gen-shorts/projects/인생은%20어떤%20여행일까,%20질문/sample_short.json)
+
+spec의 주요 필드:
+
+- `short_id`: short 고유 id
+- `source_video`, `source_srt`: 원본 영상/자막
+- `targets`: `KR`, `US`, `MX` 같은 국가/로캘 target 목록
+- `brief`: 자연어 편집 요청 원문
+- `publish`: 업로드용 title / description / tags / notes
+- `review`: 확인 필요 여부, 예상 길이, warning
+- `clip`: 메인 clip start / duration / crop
+- `format`: preset, on-screen title, secondary clip 정보
+
+### 링크를 줄 때 같이 주면 좋은 정보
+
+유튜브 링크만 있어도 시작할 수 있지만, 아래를 함께 주면 추천 품질이 좋아진다.
+
+- 원하는 포맷: 예) `위아래 분할`, `좌우 분할`, `이어붙이기`, `명대사 카드형`
+- 타겟 국가: 예) `KR`, `US`, `MX`
+- 원하는 톤: 예) `웃긴 장면`, `명대사`, `브랜드형`
+- 꼭 살리고 싶은 키워드/인물/장면
+- 피하고 싶은 요소: 예) `너무 긴 setup`, `과한 자막`, `영문 제외`
+
+시스템은 먼저 brief를 바탕으로 spec 초안을 만들고, **클립/포맷/타겟/예상 길이 확인 단계**를 거친 뒤 렌더하도록 설계한다.
+
 ---
 
 ### 1. 다운로드
@@ -192,7 +314,7 @@ python3 ./scripts/06_preview_fonts.py \
 각 폰트 후보로 자막을 입힌 프레임 이미지 생성. 기본 비교 크기는 `16,20,24,32`.
 현재 스크립트는 `drawtext` 기반으로 폰트를 직접 지정하므로, macOS의 폰트 fallback 영향 없이 실제 폰트 차이를 확인할 수 있다.
 
-**폰트 적용**: `08_make_shorts.py` 상단의 `SUBTITLE_STYLE`에서 폰트 조정.
+**폰트 적용**: `08_make_shorts.py` 상단의 `SUBTITLE_FONT`, `SUBTITLE_SIZE_RATIO`, `SUBTITLE_Y_RATIO`, `_SUBTITLE_BASE`로 조정.
 
 **외부 폰트 추가**:
 1. `.ttf` 또는 `.otf` 파일 준비
@@ -217,7 +339,7 @@ ffmpeg -y -i "workspace/영상.mp4" -ss 00:14:20 -frames:v 1 \
 **주의**: `-ss`를 `-i` 뒤에 배치해야 자막 타임스탬프가 매칭됨.
 `-ss`를 `-i` 앞에 두면 출력 타임스탬프가 0부터 시작하여 자막이 표시되지 않음.
 
-⛔ **사용자 확인**: 자막 위치·크기가 적절한지 확인. 필요 시 `SUBTITLE_STYLE`의 `MarginV`, `FontSize` 조정.
+⛔ **사용자 확인**: 자막 위치·크기가 적절한지 확인. 필요 시 `SUBTITLE_SIZE_RATIO`, `SUBTITLE_Y_RATIO`, `_SUBTITLE_BASE` 조정.
 
 ### 7. 자막 번역
 
@@ -243,6 +365,7 @@ python3 ./scripts/08_make_shorts.py \
   --input "workspace/영상.mp4" \
   --clips clips.txt \
   --srtdir workspace/ \
+  --format-config formats.json \
   --outdir output \
   --workers 4
 ```
@@ -256,7 +379,99 @@ python3 ./scripts/08_make_shorts.py \
 | `output/en/` | 영어 자막 |
 | `output/es/` | 스페인어 자막 |
 
-자막 스타일은 `08_make_shorts.py` 상단의 `SUBTITLE_STYLE` 상수로 조정 (ASS 형식).
+자막 스타일은 `08_make_shorts.py` 상단의 `SUBTITLE_FONT`, `SUBTITLE_SIZE_RATIO`, `SUBTITLE_Y_RATIO`, `_SUBTITLE_BASE`로 조정.
+
+### 8a. 포맷 프리셋 (선택)
+
+쇼츠의 "포맷"은 단순 효과 모음이 아니라, **화면 구성 + 제목/브랜드 위치 + 자막 안전영역**의 조합이다.
+이 프로젝트에서는 이를 `format preset`으로 분리하여, 같은 클립도 다른 포맷으로 렌더링할 수 있게 확장했다.
+
+현재 렌더러가 바로 지원하는 preset:
+
+| preset | 용도 |
+|---|---|
+| `clean_fullbleed` | 기본형. 영상만 꽉 채우고 자막만 표시 |
+| `headline_fullbleed` | 상단 제목 바 + 전체 클립 |
+| `branded_header_logo` | 상단 제목 + 하단 브랜드 영역(로고 또는 텍스트 pill) |
+| `quote_focus` | 큰 제목 카드형. 명대사/강한 한 줄용 |
+| `reaction_duet` | 좌우 분할 반응형. 메인 클립 + 보조 클립 동시 재생 |
+| `comparison_split` | A/B 비교형. 상하 분할 + 라벨 표시 |
+| `stitch_then_punchline` | 앞 클립 후 뒤 클립 연결형 |
+| `alternating_spotlight` | 상하 분할 순차형. 한 패널이 재생될 때 다른 패널은 freeze |
+
+다음에 확장하기 좋은 taxonomy:
+
+- `freeze_emphasis` — 중간 정지 + 확대/강조형
+- `alternating_spotlight` — 분할 상태에서 번갈아 강조형
+
+설정 파일 예시: [`formats.example.json`](/Users/shlee/Developments/gen-shorts/formats.example.json)
+
+```json
+{
+  "defaults": {
+    "preset": "headline_fullbleed",
+    "brand_text": "WOWSAN TV"
+  },
+  "clips": [
+    {
+      "name": "1_첫번째클립.mp4",
+      "preset": "branded_header_logo",
+      "title": "대표 달더니... ㄷㄷ"
+    },
+    {
+      "name": "2_두번째클립.mp4",
+      "preset": "reaction_duet",
+      "title": "반응 미쳤다",
+      "secondary_ss": "00:19:02"
+    },
+    {
+      "name": "3_세번째클립.mp4",
+      "preset": "comparison_split",
+      "title": "둘의 반응 비교",
+      "secondary_input": "./source/다른영상.mp4",
+      "secondary_ss": "00:00:42",
+      "secondary_t": "00:00:18",
+      "primary_label": "HOST",
+      "secondary_label": "GUEST"
+    },
+    {
+      "name": "4_네번째클립.mp4",
+      "preset": "stitch_then_punchline",
+      "title": "앞은 빌드업, 뒤가 펀치라인",
+      "secondary_ss": "00:47:08",
+      "secondary_t": "00:00:06"
+    }
+  ]
+}
+```
+
+추가 규칙:
+
+- `--format-config`는 선택 사항이다. 생략하면 모든 클립이 `clean_fullbleed`로 렌더된다.
+- `logo_path`를 지정하면 하단 브랜드 pill 대신 실제 로고 이미지를 오버레이한다.
+- `logo_path`가 상대경로면 JSON 파일 기준으로 해석된다.
+- `secondary_input`가 없으면 기본적으로 현재 `--input` 영상을 다시 사용한다. 즉 같은 원본 안의 다른 타임코드끼리 `duet/split/stitch`를 만들 수 있다.
+- `secondary_ss`를 생략하면 메인 클립의 시작 시각을 재사용한다.
+- `secondary_t`를 생략하면 메인 클립 길이(`clips.txt`의 2번째 컬럼)를 재사용한다.
+- `reaction_duet`, `comparison_split`은 출력 길이가 메인 클립 길이와 같다.
+- `stitch_then_punchline`은 출력 길이가 `메인 clip 길이 + secondary_t`가 된다.
+- `alternating_spotlight`은 출력 길이가 `메인 clip 길이 + secondary_t`가 되며, 전반부엔 primary만 재생되고 후반부엔 secondary만 재생된다.
+- `comparison_split`은 기본값으로 상하 분할 + `A/B` 라벨이 켜져 있다. `primary_label`, `secondary_label`로 바꿀 수 있다.
+- 같은 구간을 여러 포맷으로 뽑고 싶으면 `clips.txt`에 출력 파일명을 다르게 두 줄 넣고, `formats.json`에서 각각 다른 preset을 지정하면 된다.
+
+자주 쓰는 키:
+
+| 키 | 설명 |
+|---|---|
+| `preset` | 사용할 포맷 이름 |
+| `title` | 상단 제목 텍스트 |
+| `brand_text` | 하단 브랜드 텍스트 |
+| `logo_path` | 하단 로고 이미지 경로 |
+| `secondary_input` | 두 번째 영상 파일 경로 |
+| `secondary_ss` | 두 번째 영상 시작 시각 |
+| `secondary_t` | 두 번째 영상 길이 |
+| `secondary_crop` | 두 번째 영상 크롭 스펙 (`2~8`, `+300` 등) |
+| `primary_label` / `secondary_label` | split 포맷 패널 라벨 |
 
 ### (부록) 영상 단순 자르기
 
@@ -312,6 +527,7 @@ python3 ./scripts/08_make_shorts.py \
 gshorts/
 ├── README.md
 ├── clips.example.txt               ← clips.txt 템플릿
+├── formats.example.json            ← format preset 템플릿
 ├── scripts/                        ← 공용 스크립트
 │   ├── 01_download.sh
 │   ├── 02_transcribe.sh
@@ -327,6 +543,7 @@ gshorts/
     └── 프로젝트명/
         ├── source/                 ←   원본 영상/오디오/썸네일
         ├── clips.txt               ←   구간 목록
+        ├── formats.json            ←   클립별 포맷/제목/브랜드 설정(선택)
         ├── subtitle.srt            ←   한국어 SRT
         ├── subtitle_en.srt         ←   영어 SRT
         ├── subtitle_es.srt         ←   스페인어 SRT

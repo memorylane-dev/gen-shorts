@@ -1,0 +1,36 @@
+{
+  "defaults": {
+    "preset": "headline_fullbleed",
+    "brand_text": "WOWSAN TV"
+  },
+  "clips": [
+    {
+      "name": "1_첫번째클립.mp4",
+      "preset": "branded_header_logo",
+      "title": "대표 달더니... ㄷㄷ"
+    },
+    {
+      "name": "2_두번째클립.mp4",
+      "preset": "reaction_duet",
+      "title": "반응 미쳤다",
+      "secondary_ss": "00:19:02"
+    },
+    {
+      "name": "3_세번째클립.mp4",
+      "preset": "comparison_split",
+      "title": "둘의 반응 비교",
+      "secondary_input": "./source/다른영상.mp4",
+      "secondary_ss": "00:00:42",
+      "secondary_t": "00:00:18",
+      "primary_label": "HOST",
+      "secondary_label": "GUEST"
+    },
+    {
+      "name": "4_네번째클립.mp4",
+      "preset": "stitch_then_punchline",
+      "title": "앞은 빌드업, 뒤가 펀치라인",
+      "secondary_ss": "00:47:08",
+      "secondary_t": "00:00:06"
+    }
+  ]
+}

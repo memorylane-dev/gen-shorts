@@ -1,0 +1,13 @@
+{
+  "clips": [
+    {
+      "name": "sample_reaction_duet.mp4",
+      "preset": "alternating_spotlight",
+      "title": "위는 로키 드립, 아래는 성대모사",
+      "primary_label": "DRIP",
+      "secondary_label": "IMPRESSION",
+      "secondary_ss": "00:47:08",
+      "secondary_t": "00:00:10"
+    }
+  ]
+}

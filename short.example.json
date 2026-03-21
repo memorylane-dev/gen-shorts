@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "short_id": "my_short",
+  "brief": "위아래 분할로 setup/punchline 느낌으로 보여주고 미국/멕시코용도 같이 만들기",
+  "source_video": "./source/video.mp4",
+  "source_srt": "./subtitle.srt",
+  "output_dir": "./rendered_shorts/my_short",
+  "targets": [
+    "KR",
+    "US",
+    "MX"
+  ],
+  "include_nosub": true,
+  "review": {
+    "requires_confirmation": true,
+    "estimated_duration_sec": 20.0,
+    "estimated_duration_label": "00:20",
+    "warnings": []
+  },
+  "publish": {
+    "title": "로키 밈 2단 콤보",
+    "description": "위쪽 패널은 로키 드립, 아래쪽 패널은 성대모사 반응을 순차적으로 보여주는 쇼츠",
+    "tags": [
+      "로키",
+      "쇼츠",
+      "헤일메리"
+    ],
+    "notes": "US/MX target까지 함께 렌더"
+  },
+  "clip": {
+    "start": "00:04:05",
+    "duration": "00:00:10",
+    "crop": "0~10",
+    "output_name": "my_short.mp4"
+  },
+  "format": {
+    "preset": "alternating_spotlight",
+    "title": "위는 로키 드립, 아래는 성대모사",
+    "primary_label": "DRIP",
+    "secondary_label": "IMPRESSION",
+    "secondary_ss": "00:47:08",
+    "secondary_t": "00:00:10"
+  }
+}
