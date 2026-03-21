@@ -185,11 +185,11 @@ python3 ./scripts/06_preview_fonts.py \
   --input "workspace/영상.mp4" \
   --clips clips.txt \
   --srt "workspace/subtitle.srt" \
-  --sizes 12,16,20,24 \
+  --sizes 16,20,24,32 \
   --outdir previews
 ```
 
-각 폰트 후보로 자막을 입힌 프레임 이미지 생성. 기본 비교 크기는 `12,16,20,24`.
+각 폰트 후보로 자막을 입힌 프레임 이미지 생성. 기본 비교 크기는 `16,20,24,32`.
 현재 스크립트는 `drawtext` 기반으로 폰트를 직접 지정하므로, macOS의 폰트 fallback 영향 없이 실제 폰트 차이를 확인할 수 있다.
 
 **폰트 적용**: `08_make_shorts.py` 상단의 `SUBTITLE_STYLE`에서 폰트 조정.

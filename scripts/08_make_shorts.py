@@ -21,7 +21,13 @@ import tempfile
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 
-SUBTITLE_STYLE = "FontName=BM Yeonsung,FontSize=18,PrimaryColour=&H00FFFFFF,BackColour=&H80000000,BorderStyle=4,Outline=1,OutlineColour=&H00000000,Shadow=0,Alignment=2,MarginV=50"
+SUBTITLE_FONT = "BM JUA_OTF"
+SUBTITLE_SIZE_RATIO = 1 / 36       # 폰트 크기: 캔버스 높이 대비 비율
+SUBTITLE_Y_RATIO = 3 / 4           # 자막 위치: 캔버스 상단에서 3/4 지점
+_SUBTITLE_BASE = (
+    "PrimaryColour=&H00FFFFFF,BackColour=&H80000000,BorderStyle=4,"
+    "Outline=1,OutlineColour=&H00000000,Shadow=0,Alignment=2"
+)
 GRID_DIVISIONS = 10  # 기준선 분할 수
 OUTPUT_WIDTH = 1080
 OUTPUT_HEIGHT = 1920
@@ -108,6 +114,18 @@ def build_scale_pad_filter(crop_w, crop_h):
         return f"scale={scaled_w}:{OUTPUT_HEIGHT},pad={OUTPUT_WIDTH}:{OUTPUT_HEIGHT}:({OUTPUT_WIDTH}-{scaled_w})/2:0:black"
 
 
+def build_subtitle_style():
+    """캔버스 비율 기반 자막 스타일 생성.
+    libass FontSize는 PlayResY(기본 288) 기준이므로 변환 필요."""
+    PLAY_RES_Y = 288  # libass SRT 기본값
+    fontsize = round(SUBTITLE_SIZE_RATIO * PLAY_RES_Y)
+    margin_v = round(PLAY_RES_Y * (1 - SUBTITLE_Y_RATIO))
+    return (
+        f"FontName={SUBTITLE_FONT},FontSize={fontsize},"
+        f"{_SUBTITLE_BASE},MarginV={margin_v}"
+    )
+
+
 def parse_clips_file(path):
     clips = []
     with open(path, "r", encoding="utf-8") as f:
@@ -172,6 +190,7 @@ def encode_clip(input_video, clip_ss, clip_t, output_path, srt_path, crop_params
     """단일 클립 인코딩 (fade in/out 포함, -ss를 -i 앞에 배치하여 빠른 탐색)"""
     cw, ch, cx, cy = crop_params
     scale_pad = build_scale_pad_filter(cw, ch)
+    subtitle_style = build_subtitle_style()
     duration = ts_to_sec(clip_t)
     clip_start = ts_to_sec(clip_ss)
 
@@ -198,7 +217,7 @@ def encode_clip(input_video, clip_ss, clip_t, output_path, srt_path, crop_params
             f"crop={cw}:{ch}:{cx}:{cy},"
             f"{scale_pad},"
             f"{fade_filter},"
-            f"subtitles={srt_escaped}:force_style='{SUBTITLE_STYLE}'"
+            f"subtitles={srt_escaped}:force_style='{subtitle_style}'"
         )
     else:
         tmpdir = None

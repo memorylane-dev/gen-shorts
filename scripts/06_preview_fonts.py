@@ -7,7 +7,7 @@ Step 6: 폰트 + 크기 미리보기
 
 사용법:
   python3 06_preview_fonts.py --input 영상.mp4 --clips clips.txt --srt 자막.srt
-  python3 06_preview_fonts.py --input 영상.mp4 --clips clips.txt --srt 자막.srt --sizes 12,16,20,24
+  python3 06_preview_fonts.py --input 영상.mp4 --clips clips.txt --srt 자막.srt --sizes 16,20,24,32
 
 폰트 추가:
   FONT_CANDIDATES 리스트에 (이름, 폰트 패밀리명) 추가
@@ -31,12 +31,21 @@ FONT_CANDIDATES = [
     ("BM_Yeonsung", "BM Yeonsung"),
     ("NanumBrush", "Nanum Brush Script"),
     ("NanumPen", "Nanum Pen Script"),
+    ("BM_JUA", "BM JUA_OTF"),
+    ("SUIT", "SUIT"),
+    ("SUIT_Bold", "SUIT:style=Bold"),
 ]
 
-# 기본 테스트 사이즈
-DEFAULT_SIZES = [12, 16, 20, 24]
+# 기본 테스트 비율 (캔버스 높이 1920 대비)
+DEFAULT_SIZE_RATIOS = [1/96, 1/64, 1/48, 1/40]  # ≈20, 30, 40, 48px
+CANVAS_HEIGHT = 1920
+DEFAULT_Y_RATIO = 3 / 4  # 자막 y 위치: 캔버스 높이의 3/4 지점
+PREVIEW_LINE_SPACING = 8
+PREVIEW_BOX_BORDER = 12
 
 GRID_DIVISIONS = 10
+
+
 def ts_to_sec(ts):
     parts = ts.replace(",", ".").split(":")
     return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
@@ -95,6 +104,7 @@ def build_scale_pad(crop_w, crop_h):
     else:
         sw = int(1920 * crop_ratio)
         return f"scale={sw}:1920,pad=1080:1920:(1080-{sw})/2:0:black"
+
 
 
 def parse_clips_file(path):
@@ -168,18 +178,22 @@ def escape_drawtext_text(text):
     )
 
 
-def generate_preview(input_video, timestamp, subtitle_text, crop_params, font_label, font_family, font_size, output_path):
-    """실제 폰트 family로 drawtext 프리뷰 생성"""
+def generate_preview(input_video, timestamp, subtitle_text, crop_params, font_label, font_family, size_ratio, y_ratio, output_path):
+    """실제 폰트 family로 drawtext 프리뷰 생성 (비율 기반)"""
     cw, ch, cx, cy = crop_params
     scale_pad = build_scale_pad(cw, ch)
+
+    font_size = round(size_ratio * CANVAS_HEIGHT)
+    subtitle_y = round(y_ratio * CANVAS_HEIGHT)
 
     tmpdir = tempfile.mkdtemp(prefix="gshorts_font_")
     text_path = os.path.join(tmpdir, "sample.txt")
     with open(text_path, "w", encoding="utf-8") as f:
         f.write(subtitle_text)
 
-    # 라벨: 폰트명 + 사이즈
-    label_text = escape_drawtext_text(f"{font_label}  size={font_size}")
+    # 라벨: 폰트명 + 비율
+    ratio_str = f"1/{round(1/size_ratio)}"
+    label_text = escape_drawtext_text(f"{font_label}  {ratio_str} ({font_size}px)  y={y_ratio:.2f}")
     text_path_escaped = escape_filter_path(text_path)
     font_family_escaped = escape_drawtext_text(font_family)
     label_font_escaped = escape_drawtext_text("Apple SD Gothic Neo")
@@ -190,10 +204,11 @@ def generate_preview(input_video, timestamp, subtitle_text, crop_params, font_la
         f":textfile='{text_path_escaped}'"
         f":fontsize={font_size}"
         f":fontcolor=white"
-        f":borderw=2:bordercolor=black"
-        f":line_spacing=8"
+        f":borderw=1:bordercolor=black"
+        f":line_spacing={PREVIEW_LINE_SPACING}"
+        f":box=1:boxcolor=black@0.5:boxborderw={PREVIEW_BOX_BORDER}"
         f":x=(w-text_w)/2"
-        f":y=h-text_h-40,"
+        f":y={subtitle_y},"
         f"drawtext=text='{label_text}'"
         f":font='{label_font_escaped}'"
         f":fontsize=28:fontcolor=yellow:borderw=2:bordercolor=black"
@@ -223,7 +238,9 @@ def main():
     parser.add_argument("--clips", "-c", required=True, help="클립 목록 파일")
     parser.add_argument("--srt", "-s", required=True, help="SRT 자막 파일")
     parser.add_argument("--outdir", "-o", default="previews", help="출력 디렉토리")
-    parser.add_argument("--sizes", help="테스트할 FontSize (쉼표 구분, 기본: 12,16,20,24)")
+    parser.add_argument("--sizes", help="테스트할 비율 (쉼표 구분, 예: 1/96,1/64,1/48,1/40)")
+    parser.add_argument("--y-ratio", type=float, default=DEFAULT_Y_RATIO,
+                        help=f"자막 y 위치 비율 (기본: {DEFAULT_Y_RATIO})")
     args = parser.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
@@ -231,7 +248,10 @@ def main():
     src_w, src_h = get_video_dimensions(args.input)
     clips = parse_clips_file(args.clips)
     subs = parse_srt(args.srt)
-    sizes = [int(s) for s in args.sizes.split(",")] if args.sizes else DEFAULT_SIZES
+    if args.sizes:
+        size_ratios = [eval(s.strip()) for s in args.sizes.split(",")]
+    else:
+        size_ratios = DEFAULT_SIZE_RATIOS
 
     if not clips:
         print("clips.txt에 클립이 없습니다.")
@@ -249,7 +269,9 @@ def main():
     print(f"클립: {name}")
     print(f"자막 시점: {int(best_time//60):02d}:{int(best_time%60):02d}")
     print(f"자막: \"{sub_text}\" ({best_len}자)")
-    print(f"사이즈: {sizes}")
+    size_labels = [f"1/{round(1/r)}({round(r*CANVAS_HEIGHT)}px)" for r in size_ratios]
+    print(f"사이즈: {', '.join(size_labels)}")
+    print(f"자막 위치: y={args.y_ratio} (캔버스 {round(args.y_ratio*100)}%)")
 
     cw, ch, _, _ = crop_params
     crop_ratio = cw / ch
@@ -270,18 +292,20 @@ def main():
     print(f"폰트: {', '.join(label for label, _, _ in resolved_fonts)}")
     print()
 
-    total = len(resolved_fonts) * len(sizes)
+    total = len(resolved_fonts) * len(size_ratios)
     done = 0
     for font_label, font_family, _ in resolved_fonts:
-        for size in sizes:
-            out = os.path.join(args.outdir, f"font_{font_label}_size{size}.jpg")
+        for sr in size_ratios:
+            denom = round(1 / sr)
+            px = round(sr * CANVAS_HEIGHT)
+            out = os.path.join(args.outdir, f"font_{font_label}_r{denom}.jpg")
             ok = generate_preview(
                 args.input, best_time, sub_text, crop_params,
-                font_label, font_family, size, out
+                font_label, font_family, sr, args.y_ratio, out
             )
             done += 1
             status = "OK" if ok else "FAIL"
-            print(f"  [{done}/{total}] {font_label} size={size} — {status}")
+            print(f"  [{done}/{total}] {font_label} 1/{denom} ({px}px) — {status}")
 
     # 결과 안내
     print(f"\n{'='*60}")
@@ -289,19 +313,13 @@ def main():
     print(f"{'='*60}")
     print(f"\n  프리뷰 파일:")
     for font_label, _, _ in resolved_fonts:
-        files = [f"font_{font_label}_size{s}.jpg" for s in sizes]
+        files = [f"font_{font_label}_r{round(1/sr)}.jpg" for sr in size_ratios]
         print(f"    {font_label}: {', '.join(files)}")
 
     print(f"\n  ─── 선택 방법 ───")
-    print(f"  프리뷰를 비교한 뒤 폰트와 사이즈를 알려주세요.")
-    print(f"  예: 'NanumGothic 16으로 해줘'")
-    print(f"  선택한 값으로 렌더 설정을 반영하면 됩니다.")
-
-    print(f"\n  ─── 외부 폰트 추가 ───")
-    print(f"  1. .ttf/.otf 파일 준비")
-    print(f"  2. 이 스크립트의 FONT_CANDIDATES에 추가:")
-    print(f'     ("MyFont", "폰트 패밀리명"),')
-    print(f"  3. 프리뷰 재생성하여 비교")
+    print(f"  프리뷰를 비교한 뒤 폰트와 비율을 알려주세요.")
+    print(f"  예: 'NanumPen 1/48로 해줘'")
+    print(f"  08_make_shorts.py의 SUBTITLE_SIZE_RATIO에 반영하면 됩니다.")
     print()
 
 
