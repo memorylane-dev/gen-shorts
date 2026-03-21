@@ -31,7 +31,9 @@ pip install mlx-whisper
 3. 구간 분석        → 오디오 피크 / 키워드 / 직접 검색
                       ⛔ 사용자 확인: 어떤 기준으로 뽑을지 선택
 4. 구간 선정        → clips.txt 작성 (크롭 범위 없이)
-                      ⛔ 사용자 확인: 클립 후보 목록 승인
+                      ⛔ 사용자 확인: 클립 후보 목록 + 클립별 자막 내용 승인
+4b. 자막 검토       → 클립별 자막 추출 (번역 전 오탈자/인식 오류 확인)
+                      ⛔ 사용자 확인: 자막 내용 승인 후 번역 진행
 5. 크롭 미리보기    → 기준선 그리드 또는 LEFT/CENTER/RIGHT 비교
                       ⛔ 사용자 확인: 각 클립별 크롭 범위 지정 (예: "1번은 2~6, 나머지 1~9")
 6. 폰트 미리보기    → 폰트별 비교 이미지 생성
@@ -44,6 +46,7 @@ pip install mlx-whisper
 
 **⛔ 표시된 단계는 반드시 사용자 확인을 받은 후 다음 단계로 진행해야 한다.**
 **절대로 사용자 확인 없이 다음 단계로 넘어가지 말 것.**
+**이전 영상에서 같은 설정을 사용했더라도 매번 확인을 받아야 한다. "이전과 동일" 판단을 임의로 하지 말 것.**
 
 ---
 
@@ -117,6 +120,18 @@ python3 ./scripts/03_analyze.py \
 
 빈 템플릿: `clips.example.txt` 참고.
 
+### 4b. 클립별 자막 검토
+
+```bash
+python3 ./scripts/04b_extract_clip_subs.py \
+  --srt "workspace/subtitle.srt" \
+  --clips clips.txt \
+  --outdir previews
+```
+
+각 클립에 해당하는 자막을 추출하여 개별 파일 + 전체 요약 파일(`clip_subtitles_review.txt`)을 생성.
+번역 전에 자막 내용(오탈자, Whisper 인식 오류 등)을 검토·수정할 수 있다.
+
 ### 5. 크롭 미리보기
 
 **기준선 그리드 방식** (추천):
@@ -130,6 +145,18 @@ python3 ./scripts/05b_preview_gridlines.py \
 ```
 
 화면을 10등분한 번호 매긴 세로 기준선을 표시. "2번~8번 사이로 잘라줘" 식으로 범위 지정.
+
+`--suggest` 옵션을 추가하면 피부색 기반 자동 크롭 범위 제안이 초록색으로 표시됨.
+1인 샷에서는 정확도가 높고, 2인 이상에서는 참고용.
+
+```bash
+python3 ./scripts/05b_preview_gridlines.py \
+  --input "workspace/영상.mp4" \
+  --clips clips.txt \
+  --outdir previews \
+  --divisions 10 \
+  --suggest
+```
 
 **LEFT/CENTER/RIGHT 비교 방식**:
 
@@ -242,6 +269,7 @@ gshorts/
 │   ├── 01_download.sh
 │   ├── 02_transcribe.sh
 │   ├── 03_analyze.py
+│   ├── 04b_extract_clip_subs.py   ← 클립별 자막 추출 (번역 전 검토)
 │   ├── 05_preview_crop.py          ← 크롭 미리보기 (LEFT/CENTER/RIGHT)
 │   ├── 05b_preview_gridlines.py    ← 크롭 기준선 그리드 미리보기
 │   ├── 06_preview_fonts.py
