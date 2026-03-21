@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
 Step 6: 폰트 + 크기 미리보기
-- subtitles 필터(libass)로 실제 출력과 동일하게 렌더링
+- 실제 폰트 family를 사용해 drawtext로 렌더링
 - 폰트별 × 사이즈별 조합을 모두 생성하여 비교
 - 긴 자막이 나오는 시점 자동 선택
 
 사용법:
   python3 06_preview_fonts.py --input 영상.mp4 --clips clips.txt --srt 자막.srt
-  python3 06_preview_fonts.py --input 영상.mp4 --clips clips.txt --srt 자막.srt --sizes 10,12,14
+  python3 06_preview_fonts.py --input 영상.mp4 --clips clips.txt --srt 자막.srt --sizes 12,16,20,24
 
 폰트 추가:
-  FONT_CANDIDATES 리스트에 (이름, FontName) 추가
+  FONT_CANDIDATES 리스트에 (이름, 폰트 패밀리명) 추가
 """
 
 import subprocess
@@ -20,19 +20,23 @@ import argparse
 import tempfile
 import shutil
 
-# 한글 지원 폰트 후보 (이름, ASS FontName)
+# 한글 지원 폰트 후보 (표시용 이름, 폰트 패밀리명)
 FONT_CANDIDATES = [
-    ("AppleSDGothicNeo", "AppleSDGothicNeo"),
-    ("AppleMyungjo", "AppleMyungjo"),
-    ("AppleGothic", "AppleGothic"),
+    ("AppleSDGothicNeo", "Apple SD Gothic Neo"),
+    ("NanumGothic", "Nanum Gothic"),
+    ("NanumGothicBold", "NanumGothic ExtraBold"),
+    ("NanumMyeongjo", "Nanum Myeongjo"),
+    ("BM_Dohyeon", "BM Dohyeon"),
+    ("BM_KirangHaerang", "BM Kirang Haerang"),
+    ("BM_Yeonsung", "BM Yeonsung"),
+    ("NanumBrush", "Nanum Brush Script"),
+    ("NanumPen", "Nanum Pen Script"),
 ]
 
 # 기본 테스트 사이즈
-DEFAULT_SIZES = [10, 12, 14, 16]
+DEFAULT_SIZES = [12, 16, 20, 24]
 
 GRID_DIVISIONS = 10
-
-
 def ts_to_sec(ts):
     parts = ts.replace(",", ".").split(":")
     return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
@@ -49,6 +53,20 @@ def get_video_dimensions(input_video):
     result = subprocess.run(cmd, capture_output=True, text=True)
     w, h = result.stdout.strip().split(",")
     return int(w), int(h)
+
+
+def resolve_font_file(font_family):
+    """fontconfig로 폰트 패밀리명을 실제 파일 경로로 해석."""
+    result = subprocess.run(
+        ["fc-match", "-v", font_family],
+        capture_output=True,
+        text=True,
+    )
+    match = re.search(r'file:\s*"([^"]+)"', result.stdout)
+    if not match:
+        return None
+    path = match.group(1)
+    return path if os.path.exists(path) else None
 
 
 def parse_crop_spec(spec, src_w, src_h):
@@ -107,7 +125,7 @@ def parse_srt(path):
             continue
         start = ts_to_sec(m.group(1))
         end = ts_to_sec(m.group(2))
-        text = " ".join(lines[2:])
+        text = "\n".join(lines[2:])
         subs.append((start, end, text))
     return subs
 
@@ -129,45 +147,65 @@ def find_long_subtitle_time(subs, clip_start_sec=None, clip_dur_sec=None):
                 best_time = (start + end) / 2  # 자막 중간 시점
                 best_text = text
 
-    # 클립 범위에서 15자 이상 못 찾으면 전체에서 검색
-    if best_len < 15:
-        for start, end, text in subs:
-            if len(text) > best_len:
-                best_len = len(text)
-                best_time = (start + end) / 2
-                best_text = text
+    # 클립 범위에서 자막을 못 찾으면 클립 중간 시점 사용
+    if best_len == 0 and clip_start_sec is not None and clip_dur_sec is not None:
+        best_time = clip_start_sec + clip_dur_sec / 2
+        best_text = "(자막 없음)"
 
     return best_time, best_len, best_text
 
 
-def generate_preview(input_video, timestamp, srt_path, crop_params, font_name, font_size, output_path):
-    """subtitles 필터로 실제 출력과 동일한 프리뷰 생성"""
+def escape_filter_path(path):
+    return path.replace("\\", "/").replace(":", r"\:").replace("'", r"\'")
+
+
+def escape_drawtext_text(text):
+    return (
+        text.replace("\\", r"\\")
+        .replace(":", r"\:")
+        .replace("'", r"\'")
+        .replace("%", r"\%")
+    )
+
+
+def generate_preview(input_video, timestamp, subtitle_text, crop_params, font_label, font_family, font_size, output_path):
+    """실제 폰트 family로 drawtext 프리뷰 생성"""
     cw, ch, cx, cy = crop_params
     scale_pad = build_scale_pad(cw, ch)
 
-    # SRT 임시 링크
     tmpdir = tempfile.mkdtemp(prefix="gshorts_font_")
-    tmp_srt = os.path.join(tmpdir, "subs.srt")
-    os.symlink(os.path.abspath(srt_path), tmp_srt)
-    srt_escaped = tmp_srt.replace("\\", "/").replace(":", "\\:")
-
-    style = f"FontName={font_name},FontSize={font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=2,Alignment=2,MarginV=40"
+    text_path = os.path.join(tmpdir, "sample.txt")
+    with open(text_path, "w", encoding="utf-8") as f:
+        f.write(subtitle_text)
 
     # 라벨: 폰트명 + 사이즈
-    label_text = f"{font_name}  size={font_size}"
+    label_text = escape_drawtext_text(f"{font_label}  size={font_size}")
+    text_path_escaped = escape_filter_path(text_path)
+    font_family_escaped = escape_drawtext_text(font_family)
+    label_font_escaped = escape_drawtext_text("Apple SD Gothic Neo")
 
     vf = (
-        f"crop={cw}:{ch}:{cx}:{cy},"
-        f"{scale_pad},"
-        f"subtitles={srt_escaped}:force_style='{style}',"
+        f"crop={cw}:{ch}:{cx}:{cy},{scale_pad},"
+        f"drawtext=font='{font_family_escaped}'"
+        f":textfile='{text_path_escaped}'"
+        f":fontsize={font_size}"
+        f":fontcolor=white"
+        f":borderw=2:bordercolor=black"
+        f":line_spacing=8"
+        f":x=(w-text_w)/2"
+        f":y=h-text_h-40,"
         f"drawtext=text='{label_text}'"
-        f":fontfile=/System/Library/Fonts/AppleSDGothicNeo.ttc"
+        f":font='{label_font_escaped}'"
         f":fontsize=28:fontcolor=yellow:borderw=2:bordercolor=black"
         f":x=20:y=20"
     )
 
-    ss = f"00:{int(timestamp//60):02d}:{timestamp%60:06.3f}"
+    hours = int(timestamp // 3600)
+    mins = int((timestamp % 3600) // 60)
+    secs = timestamp % 60
+    ss = f"{hours:02d}:{mins:02d}:{secs:06.3f}"
 
+    # -ss before -i (입력 시킹, 빠름)
     cmd = [
         "ffmpeg", "-y", "-ss", ss, "-i", input_video,
         "-frames:v", "1", "-vf", vf,
@@ -180,12 +218,12 @@ def generate_preview(input_video, timestamp, srt_path, crop_params, font_name, f
 
 
 def main():
-    parser = argparse.ArgumentParser(description="폰트 + 크기 미리보기 (subtitles 필터 기반)")
+    parser = argparse.ArgumentParser(description="폰트 + 크기 미리보기 (fontfile 기반)")
     parser.add_argument("--input", "-i", required=True, help="원본 영상 파일")
     parser.add_argument("--clips", "-c", required=True, help="클립 목록 파일")
     parser.add_argument("--srt", "-s", required=True, help="SRT 자막 파일")
     parser.add_argument("--outdir", "-o", default="previews", help="출력 디렉토리")
-    parser.add_argument("--sizes", help="테스트할 FontSize (쉼표 구분, 기본: 10,12,14,16)")
+    parser.add_argument("--sizes", help="테스트할 FontSize (쉼표 구분, 기본: 12,16,20,24)")
     args = parser.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
@@ -211,7 +249,6 @@ def main():
     print(f"클립: {name}")
     print(f"자막 시점: {int(best_time//60):02d}:{int(best_time%60):02d}")
     print(f"자막: \"{sub_text}\" ({best_len}자)")
-    print(f"폰트: {', '.join(n for n, _ in FONT_CANDIDATES)}")
     print(f"사이즈: {sizes}")
 
     cw, ch, _, _ = crop_params
@@ -222,37 +259,48 @@ def main():
     print()
 
     # 폰트별 × 사이즈별 생성
-    total = len(FONT_CANDIDATES) * len(sizes)
+    resolved_fonts = []
+    for font_label, font_family in FONT_CANDIDATES:
+        font_file = resolve_font_file(font_family)
+        if not font_file:
+            print(f"  Skip {font_label}: font file resolve 실패 ({font_family})")
+            continue
+        resolved_fonts.append((font_label, font_family, font_file))
+
+    print(f"폰트: {', '.join(label for label, _, _ in resolved_fonts)}")
+    print()
+
+    total = len(resolved_fonts) * len(sizes)
     done = 0
-    for font_name, font_ass_name in FONT_CANDIDATES:
+    for font_label, font_family, _ in resolved_fonts:
         for size in sizes:
-            out = os.path.join(args.outdir, f"font_{font_name}_size{size}.jpg")
+            out = os.path.join(args.outdir, f"font_{font_label}_size{size}.jpg")
             ok = generate_preview(
-                args.input, best_time, args.srt, crop_params,
-                font_ass_name, size, out
+                args.input, best_time, sub_text, crop_params,
+                font_label, font_family, size, out
             )
             done += 1
             status = "OK" if ok else "FAIL"
-            print(f"  [{done}/{total}] {font_name} size={size} — {status}")
+            print(f"  [{done}/{total}] {font_label} size={size} — {status}")
 
     # 결과 안내
     print(f"\n{'='*60}")
     print(f"  폰트 미리보기 생성 완료 ({total}개)")
     print(f"{'='*60}")
     print(f"\n  프리뷰 파일:")
-    for font_name, _ in FONT_CANDIDATES:
-        files = [f"font_{font_name}_size{s}.jpg" for s in sizes]
-        print(f"    {font_name}: {', '.join(files)}")
+    for font_label, _, _ in resolved_fonts:
+        files = [f"font_{font_label}_size{s}.jpg" for s in sizes]
+        print(f"    {font_label}: {', '.join(files)}")
 
     print(f"\n  ─── 선택 방법 ───")
     print(f"  프리뷰를 비교한 뒤 폰트와 사이즈를 알려주세요.")
-    print(f"  예: 'AppleMyungjo size 12로 해줘'")
-    print(f"  → 08_make_shorts.py의 SUBTITLE_STYLE에 자동 반영됩니다.")
+    print(f"  예: 'NanumGothic 16으로 해줘'")
+    print(f"  선택한 값으로 렌더 설정을 반영하면 됩니다.")
 
     print(f"\n  ─── 외부 폰트 추가 ───")
     print(f"  1. .ttf/.otf 파일 준비")
     print(f"  2. 이 스크립트의 FONT_CANDIDATES에 추가:")
-    print(f'     ("NanumGothicBold", "NanumGothicBold"),')
+    print(f'     ("MyFont", "폰트 패밀리명"),')
     print(f"  3. 프리뷰 재생성하여 비교")
     print()
 

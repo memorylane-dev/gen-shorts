@@ -15,10 +15,15 @@ brew install yt-dlp
 brew tap homebrew-ffmpeg/ffmpeg
 brew install homebrew-ffmpeg/ffmpeg/ffmpeg
 
-# mlx-whisper (Apple Silicon)
+# Python 가상환경 (Apple Silicon)
 python3 -m venv .venv
 source .venv/bin/activate
-pip install mlx-whisper
+pip install mlx-whisper deep-translator
+```
+
+**중요: 모든 Python 스크립트는 반드시 `.venv` 환경에서 실행해야 한다.**
+```bash
+source .venv/bin/activate  # 매 세션 시작 시 활성화
 ```
 
 ---
@@ -180,18 +185,20 @@ python3 ./scripts/06_preview_fonts.py \
   --input "workspace/영상.mp4" \
   --clips clips.txt \
   --srt "workspace/subtitle.srt" \
+  --sizes 12,16,20,24 \
   --outdir previews
 ```
 
-각 폰트 후보로 자막을 입힌 프레임 이미지 생성. 비교 후 선택.
+각 폰트 후보로 자막을 입힌 프레임 이미지 생성. 기본 비교 크기는 `12,16,20,24`.
+현재 스크립트는 `drawtext` 기반으로 폰트를 직접 지정하므로, macOS의 폰트 fallback 영향 없이 실제 폰트 차이를 확인할 수 있다.
 
 **폰트 적용**: `08_make_shorts.py` 상단의 `SUBTITLE_STYLE`에서 폰트 조정.
 
 **외부 폰트 추가**:
 1. `.ttf` 또는 `.otf` 파일 준비
-2. `06_preview_fonts.py`의 `FONT_CANDIDATES` 리스트에 추가:
+2. 시스템에 설치한 뒤 `06_preview_fonts.py`의 `FONT_CANDIDATES` 리스트에 추가:
    ```python
-   ("NanumGothicBold", "/경로/NanumGothicBold.ttf"),
+   ("MyFont", "폰트 패밀리명"),
    ```
 3. 미리보기 재생성하여 비교
 
@@ -215,14 +222,16 @@ ffmpeg -y -i "workspace/영상.mp4" -ss 00:14:20 -frames:v 1 \
 ### 7. 자막 번역
 
 ```bash
+# 클립 구간만 번역 (기본 — 빠르고 필요한 부분만)
+source .venv/bin/activate
 python3 ./scripts/07_translate.py \
   --srt "workspace/subtitle.srt" \
   --clips clips.txt \
   --langs "en,es"
 ```
 
-`--clips`를 지정하면 클립 구간에 해당하는 자막만 번역 (빠름).
-생략하면 전체 SRT를 번역하므로 긴 영상에서는 시간이 오래 걸림.
+**반드시 `--clips`를 지정하여 클립 구간의 자막만 번역한다.**
+전체 SRT를 번역하면 불필요하게 느리다 (2000+ 세그먼트 vs 클립 구간 100개 이하).
 
 한국어 SRT를 영어/스페인어로 번역하여 `subtitle_en.srt`, `subtitle_es.srt` 생성.
 Google Translate 기반 (deep-translator). 다른 언어도 추가 가능: `ja`, `zh-CN`, `fr`, `de`, `pt` 등.
@@ -256,6 +265,44 @@ python3 ./scripts/08_make_shorts.py \
 ```bash
 ./scripts/cut_video.sh "영상.mp4" "04:50" "00:20:00" "output.mp4"
 ```
+
+---
+
+## 와우산TV 채널 쇼츠 분석
+
+실제 와우산TV(@wowsantv) 쇼츠 85개를 분석한 결과. 클립 선정 시 참고.
+
+### 길이
+
+- **인기작(조회수 상위 10개) 평균: 22초**
+- 조회수 1위(29K): 15초 — 짧을수록 조회수 높은 경향
+- 중앙값: ~38초
+- 60초 이상은 대체로 조회수 낮음
+
+→ **15~30초를 목표로 클립 선정. 길어도 40초를 넘기지 않는다.**
+
+### 제목
+
+- 짧고 임팩트 있는 한 줄 (평균 12~15자)
+- 말줄임표/이모티콘 활용: "대표달더니...ㄷㄷ", "흙흙 ㅜㅜ"
+- 궁금증 유발형: "장들레 불효 논란", "공부는 잘했지만 수능은 못봄"
+- **해시태그는 제목에 넣지 않는다** — 해시태그가 많으면 오히려 조회수 낮음
+- 영어 버전은 별도 업로드 (같은 영상 한/영 2개)
+
+### 조회수와 특징
+
+| 조회수 | 특징 |
+|--------|------|
+| 20K+ | 짧음(15~30초), 제목 한 줄, 해시태그 없음, 감정 포인트 명확 |
+| 5~10K | 중간 길이(20~45초), 구체적 제목 |
+| 1~3K | 길거나(60초+), 해시태그 과다, 진지한 톤 |
+
+### 클립 선정 기준 (이 분석에서 도출)
+
+1. **감정 포인트 하나에 집중** — 한 클립에 여러 이야기보다 "이 한마디/이 순간"
+2. **15~30초로 자른다** — 맥락 설명은 최소화, 핵심만
+3. **제목은 대사/상황 그대로** — "삼행시실패" 보다 "렛...렛...렛..." 이 낫다
+4. **영어 버전은 영어 제목으로 별도 업로드** — 자막만 바꾸는 것보다 효과적
 
 ---
 

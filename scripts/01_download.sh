@@ -26,4 +26,4 @@ yt-dlp \
 
 echo ""
 echo "=== 다운로드 완료 ==="
-ls -lh "$OUTPUT_DIR"
+ls -lh .

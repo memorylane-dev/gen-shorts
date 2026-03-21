@@ -21,7 +21,7 @@ import tempfile
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 
-SUBTITLE_STYLE = "FontName=BM Dohyeon,FontSize=12,PrimaryColour=&H00FFFFFF,BackColour=&H80000000,BorderStyle=4,Outline=1,OutlineColour=&H00000000,Shadow=0,Alignment=2,MarginV=40"
+SUBTITLE_STYLE = "FontName=BM Yeonsung,FontSize=18,PrimaryColour=&H00FFFFFF,BackColour=&H80000000,BorderStyle=4,Outline=1,OutlineColour=&H00000000,Shadow=0,Alignment=2,MarginV=50"
 GRID_DIVISIONS = 10  # 기준선 분할 수
 OUTPUT_WIDTH = 1080
 OUTPUT_HEIGHT = 1920
