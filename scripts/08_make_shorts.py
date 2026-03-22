@@ -24,6 +24,8 @@ import shutil
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+IMAGE_SUBTITLE_RENDERER_PATH = os.path.join(SCRIPT_DIR, "render_subtitle_card.swift")
 SUBTITLE_FONT = "BM JUA_OTF"
 DISPLAY_FONT = "BM JUA_OTF"
 SUBTITLE_SIZE_RATIO = 1 / 36       # 폰트 크기: 캔버스 높이 대비 비율
@@ -37,12 +39,11 @@ OUTPUT_WIDTH = 1080
 OUTPUT_HEIGHT = 1920
 AUDIO_SAMPLE_RATE = 48000
 AUDIO_CHANNEL_LAYOUT = "stereo"
+DEFAULT_SUBTITLE_MAX_WIDTH_RATIO = 0.84
 
-# 페이드 효과 설정 (초)
-FADE_IN_VIDEO = 0.3   # 영상 페이드인
-FADE_OUT_VIDEO = 0.5   # 영상 페이드아웃
-FADE_IN_AUDIO = 0.2   # 오디오 페이드인
-FADE_OUT_AUDIO = 0.4   # 오디오 페이드아웃
+# 기본 페이드 효과 설정 (초)
+DEFAULT_FADE_IN_SEC = 0.3
+DEFAULT_FADE_OUT_SEC = 1.0
 
 DEFAULT_FORMAT_PRESET = "clean_fullbleed"
 FORMAT_PRESETS = {
@@ -322,20 +323,207 @@ def escape_drawtext_text(text):
         text.replace("\\", r"\\")
         .replace(":", r"\:")
         .replace("'", r"\'")
+        .replace('"', r'\"')
         .replace("%", r"\%")
         .replace(",", r"\,")
         .replace("\n", r"\n")
     )
 
 
-def build_subtitle_style(subtitle_y_ratio=SUBTITLE_Y_RATIO):
+def normalize_font_name(value):
+    text = str(value or "").strip().lower()
+    return "".join(ch for ch in text if ch.isalnum())
+
+
+@lru_cache(maxsize=1)
+def get_font_catalog():
+    try:
+        result = subprocess.run(
+            ["fc-list", "-f", "%{family}\t%{style}\t%{file}\n"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return []
+
+    entries = []
+    for raw_line in result.stdout.splitlines():
+        parts = raw_line.strip().split("\t")
+        if len(parts) != 3:
+            continue
+        family_part, style_part, file_path = parts
+        file_path = file_path.strip()
+        if not file_path or not os.path.exists(file_path):
+            continue
+        aliases = []
+        for family in family_part.split(","):
+            family = family.strip()
+            if family:
+                aliases.append(family)
+        style = style_part.strip()
+        if style:
+            aliases.append(style)
+        stem = os.path.splitext(os.path.basename(file_path))[0]
+        if stem:
+            aliases.append(stem)
+        entries.append({
+            "aliases": aliases,
+            "file": file_path,
+        })
+    return entries
+
+
+def resolve_font_file_for_name(font_name):
+    query = normalize_font_name(font_name)
+    if not query:
+        return None
+
+    best_score = None
+    best_entry = None
+    best_alias = None
+
+    for entry in get_font_catalog():
+        for alias in entry["aliases"]:
+            alias_norm = normalize_font_name(alias)
+            if not alias_norm:
+                continue
+            score = None
+            if alias_norm == query:
+                score = 1000
+            elif alias_norm.startswith(query):
+                score = 800 - max(0, len(alias_norm) - len(query))
+            elif query in alias_norm:
+                score = 700 - max(0, len(alias_norm) - len(query))
+            elif alias_norm in query:
+                score = 500 - max(0, len(query) - len(alias_norm))
+
+            if score is None:
+                continue
+            if best_score is None or score > best_score:
+                best_score = score
+                best_entry = entry
+                best_alias = alias
+
+    if best_entry is None:
+        return None
+
+    return {
+        "file": best_entry["file"],
+        "alias": best_alias,
+    }
+
+
+def contains_probable_emoji(text):
+    for ch in text:
+        code = ord(ch)
+        if (
+            0x1F300 <= code <= 0x1FAFF or
+            0x2600 <= code <= 0x27BF or
+            0xFE00 <= code <= 0xFE0F
+        ):
+            return True
+    return False
+
+
+def parse_non_negative_float(value, field_name):
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        raise SystemExit(f"{field_name}는 숫자여야 합니다: {value}")
+    if parsed < 0:
+        raise SystemExit(f"{field_name}는 0 이상이어야 합니다: {value}")
+    return parsed
+
+
+def resolve_fade_param(format_options, specific_key, shared_key, default_value):
+    value = format_options.get(specific_key)
+    source_key = specific_key
+    if value is None:
+        value = format_options.get(shared_key)
+        source_key = shared_key
+    if value is None:
+        return float(default_value)
+    return parse_non_negative_float(value, source_key)
+
+
+def resolve_fade_start(format_options, specific_key, shared_key, duration, default_start):
+    value = format_options.get(specific_key)
+    source_key = specific_key
+    if value is None:
+        value = format_options.get(shared_key)
+        source_key = shared_key
+    if value is None:
+        resolved = float(default_start)
+    else:
+        resolved = parse_non_negative_float(value, source_key)
+    return max(0.0, min(float(duration), resolved))
+
+
+def build_final_video_fade_filter(format_options, render_duration):
+    filters = []
+
+    fade_in_sec = resolve_fade_param(format_options, "video_fade_in_sec", "fade_in_sec", DEFAULT_FADE_IN_SEC)
+    if fade_in_sec > 0:
+        fade_in_start = resolve_fade_start(
+            format_options,
+            "video_fade_in_start_sec",
+            "fade_in_start_sec",
+            render_duration,
+            0.0,
+        )
+        filters.append(f"fade=t=in:st={fade_in_start:.3f}:d={fade_in_sec:.3f}")
+
+    fade_out_sec = resolve_fade_param(format_options, "video_fade_out_sec", "fade_out_sec", DEFAULT_FADE_OUT_SEC)
+    if fade_out_sec > 0:
+        fade_out_start = resolve_fade_start(
+            format_options,
+            "video_fade_out_start_sec",
+            "fade_out_start_sec",
+            render_duration,
+            max(0.0, render_duration - fade_out_sec),
+        )
+        filters.append(f"fade=t=out:st={fade_out_start:.3f}:d={fade_out_sec:.3f}")
+
+    return ",".join(filters)
+
+
+def build_final_audio_fade_filter(format_options, render_duration):
+    filters = []
+
+    fade_in_sec = resolve_fade_param(format_options, "audio_fade_in_sec", "fade_in_sec", DEFAULT_FADE_IN_SEC)
+    if fade_in_sec > 0:
+        fade_in_start = resolve_fade_start(
+            format_options,
+            "audio_fade_in_start_sec",
+            "fade_in_start_sec",
+            render_duration,
+            0.0,
+        )
+        filters.append(f"afade=t=in:st={fade_in_start:.3f}:d={fade_in_sec:.3f}")
+
+    fade_out_sec = resolve_fade_param(format_options, "audio_fade_out_sec", "fade_out_sec", DEFAULT_FADE_OUT_SEC)
+    if fade_out_sec > 0:
+        fade_out_start = resolve_fade_start(
+            format_options,
+            "audio_fade_out_start_sec",
+            "fade_out_start_sec",
+            render_duration,
+            max(0.0, render_duration - fade_out_sec),
+        )
+        filters.append(f"afade=t=out:st={fade_out_start:.3f}:d={fade_out_sec:.3f}")
+
+    return ",".join(filters)
+
+
+def build_subtitle_style(subtitle_y_ratio=SUBTITLE_Y_RATIO, subtitle_font=SUBTITLE_FONT, subtitle_size_delta=0):
     """캔버스 비율 기반 자막 스타일 생성.
     libass FontSize는 PlayResY(기본 288) 기준이므로 변환 필요."""
     PLAY_RES_Y = 288  # libass SRT 기본값
-    fontsize = round(SUBTITLE_SIZE_RATIO * PLAY_RES_Y)
+    fontsize = max(1, round(SUBTITLE_SIZE_RATIO * PLAY_RES_Y) + int(subtitle_size_delta))
     margin_v = round(PLAY_RES_Y * (1 - subtitle_y_ratio))
     return (
-        f"FontName={SUBTITLE_FONT},FontSize={fontsize},"
+        f"FontName={subtitle_font},FontSize={fontsize},"
         f"{_SUBTITLE_BASE},MarginV={margin_v}"
     )
 
@@ -450,6 +638,30 @@ def write_srt_entries(entries, tmpdir):
     return tmp_srt
 
 
+def parse_srt_entries(srt_path):
+    with open(srt_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    blocks = re.split(r"\n\n+", content.strip())
+    entries = []
+    for block in blocks:
+        lines = block.strip().split("\n")
+        if len(lines) < 3:
+            continue
+        m = re.match(
+            r"(\d{2}:\d{2}:\d{2}[,\.]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,\.]\d{3})",
+            lines[1],
+        )
+        if not m:
+            continue
+        entries.append({
+            "start": ts_to_sec(m.group(1)),
+            "end": ts_to_sec(m.group(2)),
+            "text": "\n".join(lines[2:]).strip(),
+        })
+    return entries
+
+
 def make_shifted_srt(srt_path, clip_start, clip_end, tmpdir):
     """단일 구간 자막만 추출하고 타임스탬프를 0 기준으로 시프트한 임시 SRT 생성"""
     entries = collect_shifted_srt_entries(srt_path, clip_start, clip_end, output_offset=0.0)
@@ -489,9 +701,34 @@ def normalize_format_entry(entry, base_dir, fallback_preset):
         "secondary_crop",
         "secondary_srt",
         "split_play_mode",
+        "subtitle_renderer",
+        "subtitle_font",
     ):
         if data.get(key) is not None:
             data[key] = str(data[key]).strip()
+
+    if data.get("subtitle_size_delta") is not None:
+        data["subtitle_size_delta"] = int(data["subtitle_size_delta"])
+
+    if data.get("subtitle_max_width_ratio") is not None:
+        data["subtitle_max_width_ratio"] = float(data["subtitle_max_width_ratio"])
+
+    for key in (
+        "fade_in_sec",
+        "fade_out_sec",
+        "fade_in_start_sec",
+        "fade_out_start_sec",
+        "video_fade_in_sec",
+        "video_fade_out_sec",
+        "video_fade_in_start_sec",
+        "video_fade_out_start_sec",
+        "audio_fade_in_sec",
+        "audio_fade_out_sec",
+        "audio_fade_in_start_sec",
+        "audio_fade_out_start_sec",
+    ):
+        if data.get(key) is not None:
+            data[key] = parse_non_negative_float(data[key], key)
 
     secondary_input = data.get("secondary_input")
     if secondary_input:
@@ -519,6 +756,53 @@ def normalize_format_entry(entry, base_dir, fallback_preset):
         if not os.path.exists(logo_path):
             raise SystemExit(f"logo_path 파일이 없습니다: {logo_path}")
         data["logo_path"] = logo_path
+
+    subtitle_fontfile = data.get("subtitle_fontfile")
+    if subtitle_fontfile:
+        if not os.path.isabs(subtitle_fontfile):
+            subtitle_fontfile = os.path.join(base_dir, subtitle_fontfile)
+        subtitle_fontfile = os.path.abspath(subtitle_fontfile)
+        if not os.path.exists(subtitle_fontfile):
+            raise SystemExit(f"subtitle_fontfile 파일이 없습니다: {subtitle_fontfile}")
+        data["subtitle_fontfile"] = subtitle_fontfile
+
+    subtitle_font_by_suffix = data.get("subtitle_font_by_suffix")
+    if subtitle_font_by_suffix is not None:
+        if not isinstance(subtitle_font_by_suffix, dict):
+            raise SystemExit("subtitle_font_by_suffix는 객체여야 합니다.")
+        data["subtitle_font_by_suffix"] = {
+            str(key).strip(): str(value).strip()
+            for key, value in subtitle_font_by_suffix.items()
+            if str(key).strip() and str(value).strip()
+        }
+
+    subtitle_renderer_by_suffix = data.get("subtitle_renderer_by_suffix")
+    if subtitle_renderer_by_suffix is not None:
+        if not isinstance(subtitle_renderer_by_suffix, dict):
+            raise SystemExit("subtitle_renderer_by_suffix는 객체여야 합니다.")
+        data["subtitle_renderer_by_suffix"] = {
+            str(key).strip(): str(value).strip()
+            for key, value in subtitle_renderer_by_suffix.items()
+            if str(key).strip() and str(value).strip()
+        }
+
+    subtitle_fontfile_by_suffix = data.get("subtitle_fontfile_by_suffix")
+    if subtitle_fontfile_by_suffix is not None:
+        if not isinstance(subtitle_fontfile_by_suffix, dict):
+            raise SystemExit("subtitle_fontfile_by_suffix는 객체여야 합니다.")
+        normalized = {}
+        for key, value in subtitle_fontfile_by_suffix.items():
+            suffix = str(key).strip()
+            font_path = str(value).strip()
+            if not suffix or not font_path:
+                continue
+            if not os.path.isabs(font_path):
+                font_path = os.path.join(base_dir, font_path)
+            font_path = os.path.abspath(font_path)
+            if not os.path.exists(font_path):
+                raise SystemExit(f"subtitle_fontfile_by_suffix 파일이 없습니다: {font_path}")
+            normalized[suffix] = font_path
+        data["subtitle_fontfile_by_suffix"] = normalized
 
     return data
 
@@ -570,6 +854,29 @@ def get_clip_format_options(clip_name, format_config):
                 continue
             merged[key] = value
 
+    return merged
+
+
+def apply_track_format_overrides(format_options, suffix):
+    merged = dict(format_options)
+    for key in (
+        "subtitle_font",
+        "subtitle_fontfile",
+        "subtitle_renderer",
+        "subtitle_size_delta",
+        "subtitle_max_width_ratio",
+    ):
+        map_key = f"{key}_by_suffix"
+        overrides = merged.get(map_key)
+        if isinstance(overrides, dict) and suffix in overrides:
+            merged[key] = overrides[suffix]
+
+    subtitle_font = merged.get("subtitle_font")
+    if subtitle_font and not merged.get("subtitle_fontfile"):
+        resolved = resolve_font_file_for_name(subtitle_font)
+        if resolved:
+            merged["subtitle_fontfile"] = resolved["file"]
+            merged.setdefault("subtitle_font_resolved_alias", resolved["alias"])
     return merged
 
 
@@ -730,13 +1037,117 @@ def build_format_draw_filters(format_options, layout_meta=None):
     return filters
 
 
-def build_output_filters(fade_filter, srt_path, subtitle_style, format_options, layout_meta=None):
-    filters = [fade_filter]
-    if srt_path:
-        srt_escaped = escape_filter_path(srt_path)
-        filters.append(f"subtitles={srt_escaped}:force_style='{subtitle_style}'")
-    filters.extend(build_format_draw_filters(format_options, layout_meta))
+def build_drawtext_subtitle_filters(srt_path, format_options):
+    entries = parse_srt_entries(srt_path)
+    if not entries:
+        return []
+
+    if any(contains_probable_emoji(entry["text"]) for entry in entries):
+        print("  Warn: drawtext renderer는 emoji를 안정적으로 렌더하지 못할 수 있습니다. subtitle_renderer='image' 사용을 권장합니다.")
+    if any("\n" not in entry["text"] and len(entry["text"]) >= 28 for entry in entries):
+        print("  Warn: drawtext renderer는 자동 줄바꿈을 하지 않습니다. 긴 문장은 수동 줄바꿈 또는 subtitle_renderer='image'를 권장합니다.")
+
+    subtitle_fontfile = format_options.get("subtitle_fontfile")
+    subtitle_font = format_options.get("subtitle_font", SUBTITLE_FONT)
+    font_size = max(1, round(SUBTITLE_SIZE_RATIO * OUTPUT_HEIGHT) + int(format_options.get("subtitle_size_delta", 0)))
+    margin_v = round(OUTPUT_HEIGHT * (1 - format_options.get("subtitle_y_ratio", SUBTITLE_Y_RATIO)))
+    line_spacing = int(format_options.get("subtitle_line_spacing", 6))
+    box_border = int(format_options.get("subtitle_box_border", 18))
+    box_color = format_options.get("subtitle_box_color", "black@0.55")
+    border_w = int(format_options.get("subtitle_border_w", 2))
+    border_color = format_options.get("subtitle_border_color", "black")
+
+    font_expr = f"fontfile='{escape_filter_path(subtitle_fontfile)}'" if subtitle_fontfile else f"font='{escape_drawtext_text(subtitle_font)}'"
+    filters = []
+    for entry in entries:
+        text = escape_drawtext_text(entry["text"])
+        start = f"{entry['start']:.3f}"
+        end = f"{entry['end']:.3f}"
+        enable_expr = f"between(t\\,{start}\\,{end})"
+        filters.append(
+            "drawtext="
+            f"{font_expr}:"
+            f"text='{text}':"
+            f"fontsize={font_size}:"
+            "fontcolor=white:"
+            f"borderw={border_w}:"
+            f"bordercolor={border_color}:"
+            f"line_spacing={line_spacing}:"
+            "x=(w-text_w)/2:"
+            f"y=h-{margin_v}-text_h:"
+            "box=1:"
+            f"boxcolor={box_color}:"
+            f"boxborderw={box_border}:"
+            f"enable='{enable_expr}'"
+        )
     return filters
+
+
+def render_image_subtitle_card(text, output_path, format_options):
+    if not os.path.exists(IMAGE_SUBTITLE_RENDERER_PATH):
+        raise SystemExit(f"subtitle image renderer 스크립트가 없습니다: {IMAGE_SUBTITLE_RENDERER_PATH}")
+
+    font_name = format_options.get("subtitle_font", SUBTITLE_FONT)
+    font_file = format_options.get("subtitle_fontfile")
+    font_size = max(1, round(SUBTITLE_SIZE_RATIO * OUTPUT_HEIGHT) + int(format_options.get("subtitle_size_delta", 0)))
+    max_width_ratio = float(format_options.get("subtitle_max_width_ratio", DEFAULT_SUBTITLE_MAX_WIDTH_RATIO))
+    max_width = max(200, int(OUTPUT_WIDTH * max_width_ratio))
+    line_spacing = int(format_options.get("subtitle_line_spacing", 6))
+    box_color = str(format_options.get("subtitle_box_color", "black@0.55"))
+    text_color = str(format_options.get("subtitle_text_color", "white"))
+    padding_x = int(format_options.get("subtitle_box_padding_x", 28))
+    padding_y = int(format_options.get("subtitle_box_padding_y", 18))
+    corner_radius = int(format_options.get("subtitle_corner_radius", 22))
+    align = str(format_options.get("subtitle_align", "center")).strip().lower() or "center"
+
+    text_path = f"{output_path}.txt"
+    with open(text_path, "w", encoding="utf-8") as f:
+        f.write(text)
+
+    cache_dir = os.path.join(tempfile.gettempdir(), "gshorts-swift-cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    env = dict(os.environ)
+    env["SWIFT_MODULECACHE_PATH"] = cache_dir
+    env["CLANG_MODULE_CACHE_PATH"] = cache_dir
+
+    cmd = [
+        "swift",
+        IMAGE_SUBTITLE_RENDERER_PATH,
+        "--text-file", text_path,
+        "--output", output_path,
+        "--max-width", str(max_width),
+        "--font-name", font_name,
+        "--font-size", str(font_size),
+        "--line-spacing", str(line_spacing),
+        "--padding-x", str(padding_x),
+        "--padding-y", str(padding_y),
+        "--box-color", box_color,
+        "--text-color", text_color,
+        "--corner-radius", str(corner_radius),
+        "--align", align,
+    ]
+    if font_file:
+        cmd += ["--font-file", font_file]
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    if result.returncode != 0:
+        stderr = (result.stderr or result.stdout or "").strip()
+        raise SystemExit(f"subtitle image 생성 실패: {stderr}")
+
+
+def build_image_subtitle_assets(srt_path, format_options, tmpdir):
+    entries = parse_srt_entries(srt_path)
+    assets = []
+    for idx, entry in enumerate(entries, start=1):
+        if not entry["text"].strip():
+            continue
+        image_path = os.path.join(tmpdir, f"subtitle_card_{idx:03d}.png")
+        render_image_subtitle_card(entry["text"], image_path, format_options)
+        assets.append({
+            "path": image_path,
+            "start": entry["start"],
+            "end": entry["end"],
+        })
+    return assets
 
 
 def append_audio_segment(parts, input_index, duration, output_label, has_audio=True):
@@ -755,20 +1166,78 @@ def append_audio_segment(parts, input_index, duration, output_label, has_audio=T
     )
 
 
-def append_faded_audio(parts, input_label, duration, output_label="aout"):
-    afade_out_start = max(0, duration - FADE_OUT_AUDIO)
-    parts.append(
-        f"[{input_label}]afade=t=in:st=0:d={FADE_IN_AUDIO},"
-        f"afade=t=out:st={afade_out_start}:d={FADE_OUT_AUDIO}[{output_label}]"
-    )
+def append_faded_audio(parts, input_label, duration, format_options, output_label="aout"):
+    audio_fade_filter = build_final_audio_fade_filter(format_options, duration)
+    if audio_fade_filter:
+        parts.append(f"[{input_label}]{audio_fade_filter}[{output_label}]")
+    elif input_label != output_label:
+        parts.append(f"[{input_label}]anull[{output_label}]")
 
 
-def append_output_overlay(parts, body_label, output_filters, format_options, logo_input_index=None):
-    use_logo = logo_input_index is not None
-    target_label = "base" if use_logo else "vout"
-    parts.append(f"{body_label}{','.join(output_filters)}[{target_label}]")
+def append_output_overlay(
+    parts,
+    body_label,
+    final_video_fade_filter,
+    srt_path,
+    subtitle_style,
+    format_options,
+    layout_meta=None,
+    logo_input_index=None,
+    subtitle_image_inputs=None,
+):
+    subtitle_image_inputs = subtitle_image_inputs or []
+    subtitle_renderer = (format_options.get("subtitle_renderer") or "libass").strip().lower()
+    if subtitle_renderer not in {"libass", "drawtext", "image"}:
+        raise SystemExit(f"알 수 없는 subtitle_renderer: {subtitle_renderer}")
 
-    if not use_logo:
+    filter_chain = []
+    if srt_path and subtitle_renderer == "drawtext":
+        filter_chain.extend(build_drawtext_subtitle_filters(srt_path, format_options))
+    elif srt_path and subtitle_renderer == "libass":
+        srt_escaped = escape_filter_path(srt_path)
+        filter_chain.append(f"subtitles={srt_escaped}:force_style='{subtitle_style}'")
+
+    draw_filters = build_format_draw_filters(format_options, layout_meta)
+    needs_intermediate = bool(subtitle_image_inputs or draw_filters or logo_input_index is not None)
+
+    if filter_chain:
+        current_label = "vprep" if needs_intermediate else "vbase"
+        parts.append(f"{body_label}{','.join(filter_chain)}[{current_label}]")
+    elif needs_intermediate:
+        current_label = "vprep"
+        parts.append(f"{body_label}null[{current_label}]")
+    else:
+        current_label = body_label.strip("[]")
+
+    if subtitle_image_inputs:
+        margin_v = round(OUTPUT_HEIGHT * (1 - format_options.get("subtitle_y_ratio", SUBTITLE_Y_RATIO)))
+        for idx, asset in enumerate(subtitle_image_inputs, start=1):
+            next_label = f"vsub{idx}"
+            start = f"{asset['start']:.3f}"
+            end = f"{asset['end']:.3f}"
+            enable_expr = f"between(t\\,{start}\\,{end})"
+            parts.append(
+                f"[{current_label}][{asset['input_index']}:v]overlay="
+                "x=(main_w-overlay_w)/2:"
+                f"y=main_h-{margin_v}-overlay_h:"
+                f"enable='{enable_expr}'"
+                f"[{next_label}]"
+            )
+            current_label = next_label
+
+    if draw_filters:
+        next_label = "base" if logo_input_index is not None else "vbase"
+        parts.append(f"[{current_label}]{','.join(draw_filters)}[{next_label}]")
+        current_label = next_label
+    elif logo_input_index is not None:
+        parts.append(f"[{current_label}]null[base]")
+        current_label = "base"
+
+    if logo_input_index is None:
+        if final_video_fade_filter:
+            parts.append(f"[{current_label}]{final_video_fade_filter}[vout]")
+        elif current_label != "vout":
+            parts.append(f"[{current_label}]null[vout]")
         return
 
     logo_width = int(format_options.get("logo_max_width", 220))
@@ -776,18 +1245,23 @@ def append_output_overlay(parts, body_label, output_filters, format_options, log
     logo_y_margin = int(format_options.get("brand_y_margin", 220))
     parts.append(f"[{logo_input_index}:v]scale={logo_width}:-1[logo]")
     parts.append(
-        f"[base][logo]overlay="
+        f"[{current_label}][logo]overlay="
         f"x=main_w-overlay_w-{logo_x_margin}:"
-        f"y=main_h-overlay_h-{logo_y_margin}:format=auto[vout]"
+        f"y=main_h-overlay_h-{logo_y_margin}:format=auto[vlogo]"
     )
+    if final_video_fade_filter:
+        parts.append(f"[vlogo]{final_video_fade_filter}[vout]")
+    else:
+        parts.append("[vlogo]null[vout]")
 
 
-def build_render_plan(input_video, clip_ss, clip_t, crop_params, srt_path, subtitle_style, format_options):
+def build_render_plan(input_video, clip_ss, clip_t, crop_params, srt_path, subtitle_style, format_options, subtitle_image_assets=None):
     layout_mode = format_options.get("layout_mode", "single")
     primary_duration = ts_to_sec(clip_t)
     primary_has_audio = has_audio_stream(input_video)
     secondary = get_secondary_media_info(input_video, clip_ss, clip_t, format_options)
     split_play_mode = format_options.get("split_play_mode", "parallel")
+    subtitle_image_assets = subtitle_image_assets or []
 
     if layout_mode == "stitch":
         render_duration = primary_duration + secondary["duration"]
@@ -796,11 +1270,7 @@ def build_render_plan(input_video, clip_ss, clip_t, crop_params, srt_path, subti
     else:
         render_duration = primary_duration
 
-    fade_out_start = max(0, render_duration - FADE_OUT_VIDEO)
-    fade_filter = (
-        f"fade=t=in:st=0:d={FADE_IN_VIDEO},"
-        f"fade=t=out:st={fade_out_start}:d={FADE_OUT_VIDEO}"
-    )
+    final_video_fade_filter = build_final_video_fade_filter(format_options, render_duration)
 
     brand_mode = format_options.get("brand_mode", "none")
     logo_path = format_options.get("logo_path")
@@ -814,13 +1284,18 @@ def build_render_plan(input_video, clip_ss, clip_t, crop_params, srt_path, subti
         extra_inputs += ["-ss", secondary["ss"], "-i", secondary["path"]]
         next_input_index += 1
 
+    subtitle_image_inputs = []
+    for asset in subtitle_image_assets:
+        subtitle_image_inputs.append({**asset, "input_index": next_input_index})
+        extra_inputs += ["-loop", "1", "-i", asset["path"]]
+        next_input_index += 1
+
     logo_input_index = next_input_index if use_logo else None
     if use_logo:
         extra_inputs += ["-loop", "1", "-i", logo_path]
 
     parts = []
     audio_map = "[aout]"
-    use_cmd_audio_filter = False
     layout_meta = None
     cw, ch, cx, cy = crop_params
 
@@ -828,7 +1303,7 @@ def build_render_plan(input_video, clip_ss, clip_t, crop_params, srt_path, subti
         scale_pad = build_scale_pad_filter(cw, ch)
         parts.append(f"[0:v]crop={cw}:{ch}:{cx}:{cy},{scale_pad}[body]")
         append_audio_segment(parts, 0, render_duration, "apre", has_audio=primary_has_audio)
-        append_faded_audio(parts, "apre", render_duration)
+        append_faded_audio(parts, "apre", render_duration, format_options)
     elif layout_mode == "split":
         if secondary is None or secondary_index is None:
             raise SystemExit(f"{format_options['preset']} preset은 secondary input이 필요합니다.")
@@ -857,7 +1332,7 @@ def build_render_plan(input_video, clip_ss, clip_t, crop_params, srt_path, subti
                 append_audio_segment(parts, secondary_index, render_duration, "apre", has_audio=True)
             else:
                 append_audio_segment(parts, 0, render_duration, "apre", has_audio=False)
-            append_faded_audio(parts, "apre", render_duration)
+            append_faded_audio(parts, "apre", render_duration, format_options)
         elif split_play_mode == "sequential_freeze":
             parts.append(
                 f"[0:v]crop={cw}:{ch}:{cx}:{cy},{primary_scale},trim=duration={primary_duration:.3f},setpts=PTS-STARTPTS[p0play]"
@@ -878,7 +1353,7 @@ def build_render_plan(input_video, clip_ss, clip_t, crop_params, srt_path, subti
             append_audio_segment(parts, 0, primary_duration, "a0", has_audio=primary_has_audio)
             append_audio_segment(parts, secondary_index, secondary["duration"], "a1", has_audio=secondary["has_audio"])
             parts.append("[a0][a1]concat=n=2:v=0:a=1[acat]")
-            append_faded_audio(parts, "acat", render_duration)
+            append_faded_audio(parts, "acat", render_duration, format_options)
         else:
             raise SystemExit(f"알 수 없는 split_play_mode: {split_play_mode}")
     elif layout_mode == "stitch":
@@ -899,18 +1374,26 @@ def build_render_plan(input_video, clip_ss, clip_t, crop_params, srt_path, subti
         append_audio_segment(parts, 0, primary_duration, "a0", has_audio=primary_has_audio)
         append_audio_segment(parts, secondary_index, secondary["duration"], "a1", has_audio=secondary["has_audio"])
         parts.append("[a0][a1]concat=n=2:v=0:a=1[acat]")
-        append_faded_audio(parts, "acat", render_duration)
+        append_faded_audio(parts, "acat", render_duration, format_options)
     else:
         raise SystemExit(f"알 수 없는 layout_mode: {layout_mode}")
 
-    output_filters = build_output_filters(fade_filter, srt_path, subtitle_style, format_options, layout_meta)
-    append_output_overlay(parts, "[body]", output_filters, format_options, logo_input_index)
+    append_output_overlay(
+        parts,
+        "[body]",
+        final_video_fade_filter,
+        srt_path,
+        subtitle_style,
+        format_options,
+        layout_meta=layout_meta,
+        logo_input_index=logo_input_index,
+        subtitle_image_inputs=subtitle_image_inputs,
+    )
 
     return {
         "extra_inputs": extra_inputs,
         "filter_complex": ";".join(parts),
         "audio_map": audio_map,
-        "use_cmd_audio_filter": use_cmd_audio_filter,
         "render_duration_ts": sec_to_ffmpeg_ts(render_duration),
         "render_duration": render_duration,
     }
@@ -918,7 +1401,11 @@ def build_render_plan(input_video, clip_ss, clip_t, crop_params, srt_path, subti
 
 def encode_clip(input_video, clip_ss, clip_t, output_path, srt_path, crop_params, format_options):
     """단일 클립 인코딩 (fade in/out 포함, -ss를 -i 앞에 배치하여 빠른 탐색)"""
-    subtitle_style = build_subtitle_style(format_options.get("subtitle_y_ratio", SUBTITLE_Y_RATIO))
+    subtitle_style = build_subtitle_style(
+        format_options.get("subtitle_y_ratio", SUBTITLE_Y_RATIO),
+        format_options.get("subtitle_font", SUBTITLE_FONT),
+        format_options.get("subtitle_size_delta", 0),
+    )
     duration = ts_to_sec(clip_t)
     clip_start = ts_to_sec(clip_ss)
     secondary = get_secondary_media_info(input_video, clip_ss, clip_t, format_options)
@@ -926,6 +1413,7 @@ def encode_clip(input_video, clip_ss, clip_t, output_path, srt_path, crop_params
 
     tmpdir = None
     shifted_srt_path = None
+    subtitle_image_assets = []
     if srt_path:
         # 클립 구간 자막을 0 기준으로 시프트한 임시 SRT 생성
         tmpdir = tempfile.mkdtemp(prefix="gshorts_")
@@ -955,6 +1443,9 @@ def encode_clip(input_video, clip_ss, clip_t, output_path, srt_path, crop_params
                 })
 
         shifted_srt_path = make_composite_srt(subtitle_segments, tmpdir)
+        subtitle_renderer = (format_options.get("subtitle_renderer") or "libass").strip().lower()
+        if subtitle_renderer == "image":
+            subtitle_image_assets = build_image_subtitle_assets(shifted_srt_path, format_options, tmpdir)
 
     render_plan = build_render_plan(
         input_video,
@@ -964,6 +1455,7 @@ def encode_clip(input_video, clip_ss, clip_t, output_path, srt_path, crop_params
         shifted_srt_path,
         subtitle_style,
         format_options,
+        subtitle_image_assets=subtitle_image_assets,
     )
 
     # 항상 -ss를 -i 앞에 배치 → 빠른 탐색
@@ -980,14 +1472,6 @@ def encode_clip(input_video, clip_ss, clip_t, output_path, srt_path, crop_params
         "-map", render_plan["audio_map"],
     ]
 
-    if render_plan["use_cmd_audio_filter"]:
-        afade_out_start = max(0, render_plan["render_duration"] - FADE_OUT_AUDIO)
-        af = (
-            f"afade=t=in:st=0:d={FADE_IN_AUDIO},"
-            f"afade=t=out:st={afade_out_start}:d={FADE_OUT_AUDIO}"
-        )
-        cmd += ["-af", af]
-
     cmd += [
         "-c:v", "libx264", "-preset", "fast", "-crf", "23",
         "-c:a", "aac", "-b:a", "128k",
@@ -999,6 +1483,13 @@ def encode_clip(input_video, clip_ss, clip_t, output_path, srt_path, crop_params
 
     if tmpdir:
         shutil.rmtree(tmpdir, ignore_errors=True)
+
+    if result.returncode != 0:
+        print(f"\nFFmpeg failed for {output_path}", flush=True)
+        stderr = (result.stderr or "").strip()
+        if stderr:
+            tail = "\n".join(stderr.splitlines()[-40:])
+            print(tail, flush=True)
 
     return result.returncode == 0
 
@@ -1059,8 +1550,11 @@ def main():
         futures = []
         for ss, t, name, crop_spec in clips:
             crop_params = parse_crop_spec(crop_spec, src_w, src_h)
-            format_options = get_clip_format_options(name, format_config)
             for suffix, srt_path, label in available_langs:
+                format_options = apply_track_format_overrides(
+                    get_clip_format_options(name, format_config),
+                    suffix,
+                )
                 out_path = os.path.join(args.outdir, suffix, name)
                 futures.append((
                     pool.submit(

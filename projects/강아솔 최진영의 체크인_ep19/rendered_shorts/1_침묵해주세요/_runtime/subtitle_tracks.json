@@ -1,0 +1,19 @@
+{
+  "tracks": [
+    {
+      "suffix": "kr",
+      "label": "한국어 (KR)",
+      "srt": "/Users/shlee/Developments/gen-shorts/projects/wduo8vzCkuw/shorts/1_침묵해주세요/subtitle.srt"
+    },
+    {
+      "suffix": "us",
+      "label": "English (US)",
+      "srt": "/Users/shlee/Developments/gen-shorts/projects/wduo8vzCkuw/shorts/1_침묵해주세요/subtitle_en.srt"
+    },
+    {
+      "suffix": "jp",
+      "label": "日本語 (JP)",
+      "srt": "/Users/shlee/Developments/gen-shorts/projects/wduo8vzCkuw/shorts/1_침묵해주세요/subtitle_ja.srt"
+    }
+  ]
+}

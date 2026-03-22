@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "short_id": "1_침묵해주세요",
+  "brief": "잔잔한 라디오 톤으로 아차산과 남산 이야기를 주고받는 유머 구간",
+  "source_video": "../../source/강아솔 최진영의 체크인19화 - Guest. 김화진 작가님 ⧸시즌2 마지막회.mp4",
+  "source_srt": "./subtitle.srt",
+  "output_dir": "../../rendered_shorts/1_침묵해주세요",
+  "targets": [
+    "KR",
+    "US",
+    "JP"
+  ],
+  "include_nosub": false,
+  "review": {
+    "requires_confirmation": true
+  },
+  "publish": {
+    "title": "아차산 듣고 웃은 이유",
+    "description": "아차산을 듣고 빵 터졌다가 남산 버스 고백까지 이어지는 잔잔한 등산 농담",
+    "tags": [
+      "체크인",
+      "김화진",
+      "강아솔",
+      "최진영",
+      "아차산",
+      "쇼츠"
+    ]
+  },
+  "clip": {
+    "start": "00:34:33",
+    "duration": "00:00:57",
+    "crop": "",
+    "output_name": "1_침묵해주세요.mp4"
+  },
+  "format": {
+    "preset": "clean_fullbleed",
+    "subtitle_font": "Jua",
+    "subtitle_font_by_suffix": {
+      "jp": "Hiragino Maru Gothic ProN"
+    },
+    "subtitle_renderer": "image",
+    "subtitle_size_delta": 2,
+    "subtitle_max_width_ratio": 0.84,
+    "fade_in_sec": 0.45,
+    "fade_out_sec": 1.2
+  }
+}

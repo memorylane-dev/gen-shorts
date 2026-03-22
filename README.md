@@ -3,6 +3,8 @@
 YouTube 영상에서 쇼츠를 만드는 CLI 파이프라인.
 영상 다운로드 → 자막 추출 → 구간 분석 → 크롭/폰트 확인 → 최종 생성까지 7단계.
 
+개발/커밋 규칙은 [`CONTRIBUTING.md`](/Users/shlee/Developments/gen-shorts/CONTRIBUTING.md) 참고.
+
 ---
 
 ## 사전 준비
@@ -14,6 +16,10 @@ brew install yt-dlp
 # ffmpeg (drawtext/subtitles 필터 포함)
 brew tap homebrew-ffmpeg/ffmpeg
 brew install homebrew-ffmpeg/ffmpeg/ffmpeg
+
+# macOS subtitle image renderer
+# Xcode Command Line Tools 또는 Swift 런타임 필요
+xcode-select --install
 
 # Python 가상환경 (Apple Silicon)
 python3 -m venv .venv
@@ -312,7 +318,7 @@ python3 ./scripts/06_preview_fonts.py \
 ```
 
 각 폰트 후보로 자막을 입힌 프레임 이미지 생성. 기본 비교 크기는 `16,20,24,32`.
-현재 스크립트는 `drawtext` 기반으로 폰트를 직접 지정하므로, macOS의 폰트 fallback 영향 없이 실제 폰트 차이를 확인할 수 있다.
+폰트 미리보기는 기본적으로 `drawtext` 기준 비교다. 최종 short가 `subtitle_renderer: "image"`를 쓰는 경우에는, 실제 렌더에서 AppKit fallback이 추가되어 emoji/일본어가 더 잘 보일 수 있다.
 
 **폰트 적용**: `08_make_shorts.py` 상단의 `SUBTITLE_FONT`, `SUBTITLE_SIZE_RATIO`, `SUBTITLE_Y_RATIO`, `_SUBTITLE_BASE`로 조정.
 
@@ -379,7 +385,42 @@ python3 ./scripts/08_make_shorts.py \
 | `output/en/` | 영어 자막 |
 | `output/es/` | 스페인어 자막 |
 
-자막 스타일은 `08_make_shorts.py` 상단의 `SUBTITLE_FONT`, `SUBTITLE_SIZE_RATIO`, `SUBTITLE_Y_RATIO`, `_SUBTITLE_BASE`로 조정.
+자막 스타일은 `08_make_shorts.py` 상단의 `SUBTITLE_FONT`, `SUBTITLE_SIZE_RATIO`, `SUBTITLE_Y_RATIO`, `_SUBTITLE_BASE`로 조정할 수 있고, short spec / format config에서 clip별 override도 가능하다.
+
+### 8a. 자막 렌더러 선택 규칙
+
+현재 자막 렌더러는 `libass`, `drawtext`, `image` 3가지를 지원한다.
+
+| renderer | 장점 | 주의점 | 추천 상황 |
+|---|---|---|---|
+| `libass` | 빠르고 단순함. 기존 SRT/ASS 흐름과 잘 맞음 | macOS font fallback이 예측 불가할 수 있음 | 기본형, 폰트 통제가 중요하지 않을 때 |
+| `drawtext` | `subtitle_fontfile`로 실제 폰트를 강제 가능 | Apple Color Emoji를 렌더하지 못하고, 지원하지 않는 glyph는 네모(tofu)로 깨질 수 있음. 자동 줄바꿈 없음 | 한글/영문 단일 계열 폰트를 정확히 쓰고 싶을 때 |
+| `image` | emoji, 한/영/일 혼합, 자동 줄바꿈에 가장 안정적 | 렌더 시간이 더 걸림. macOS AppKit/Swift 필요 | 화자 emoji, 일본어 target, 긴 자막, 화면 안전영역이 중요한 쇼츠 |
+
+재현 방지 규칙:
+
+- exact emoji를 자막에 넣어야 하면 `subtitle_renderer: "image"`를 사용한다.
+- `BM Jua` 같은 한글 display font로 `JP` target까지 같이 만들면, `drawtext`에서는 일본어 glyph가 깨질 수 있다. 이 경우 `image` renderer를 쓰거나 `subtitle_font_by_suffix.jp`로 일본어 전용 폰트를 지정한다.
+- 자막 길이가 길어서 화면을 벗어날 수 있으면 `image` renderer를 사용한다. `image` renderer는 카드 폭 기준으로 자동 줄바꿈을 수행한다.
+- `drawtext`를 유지한다면 긴 문장은 SRT에서 수동으로 줄바꿈해 둔다.
+- `image` renderer는 설치된 폰트를 이름으로 찾을 때 `Jua`, `BM JUA OTF`, `Nanum Pen Script`처럼 사람이 말하는 이름을 최대한 자동 해석해 해당 폰트 파일을 등록한다. 다만 같은 이름 후보가 여러 개인 경우에는 더 구체적인 이름을 쓰는 것이 안전하다.
+
+예시:
+
+```json
+{
+  "format": {
+    "preset": "clean_fullbleed",
+    "subtitle_renderer": "image",
+    "subtitle_font": "BM JUA OTF",
+    "subtitle_font_by_suffix": {
+      "jp": "Hiragino Maru Gothic ProN"
+    },
+    "subtitle_size_delta": 2,
+    "subtitle_max_width_ratio": 0.84
+  }
+}
+```
 
 ### 8a. 포맷 프리셋 (선택)
 
@@ -472,6 +513,19 @@ python3 ./scripts/08_make_shorts.py \
 | `secondary_t` | 두 번째 영상 길이 |
 | `secondary_crop` | 두 번째 영상 크롭 스펙 (`2~8`, `+300` 등) |
 | `primary_label` / `secondary_label` | split 포맷 패널 라벨 |
+| `subtitle_renderer` | `libass`, `drawtext`, `image` 중 선택 |
+| `subtitle_font` | 자막 폰트 이름 |
+| `subtitle_fontfile` | `drawtext`용 절대/상대 폰트 파일 경로 |
+| `subtitle_font_by_suffix` | `{"jp": "Hiragino Maru Gothic ProN"}` 같은 target별 폰트 override |
+| `subtitle_fontfile_by_suffix` | target별 폰트 파일 override |
+| `subtitle_renderer_by_suffix` | target별 렌더러 override |
+| `subtitle_max_width_ratio` | `image` renderer 카드 최대 폭 비율 |
+| `fade_in_sec` / `fade_out_sec` | 최종 결과물 기준 video+audio 공통 fade 길이(초) |
+| `fade_in_start_sec` / `fade_out_start_sec` | 최종 결과물 기준 공통 fade 시작 시각(초) |
+| `video_fade_*` | video만 별도 fade 길이/시각 override |
+| `audio_fade_*` | audio만 별도 fade 길이/시각 override |
+
+- fade는 원본 클립이 아니라 최종 합성 결과물 기준으로 적용된다. 즉 자막, 타이틀, 로고, split/stitch 결과와 오디오가 함께 사라진다.
 
 ### (부록) 영상 단순 자르기
 

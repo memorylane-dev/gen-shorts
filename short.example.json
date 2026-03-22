@@ -39,6 +39,14 @@
     "primary_label": "DRIP",
     "secondary_label": "IMPRESSION",
     "secondary_ss": "00:47:08",
-    "secondary_t": "00:00:10"
+    "secondary_t": "00:00:10",
+    "subtitle_renderer": "image",
+    "subtitle_font": "BM JUA OTF",
+    "fade_in_sec": 0.3,
+    "fade_out_sec": 1.0,
+    "subtitle_font_by_suffix": {
+      "jp": "Hiragino Maru Gothic ProN"
+    },
+    "subtitle_max_width_ratio": 0.84
   }
 }

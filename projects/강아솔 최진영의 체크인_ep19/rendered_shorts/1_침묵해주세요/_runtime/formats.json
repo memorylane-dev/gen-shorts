@@ -1,0 +1,18 @@
+{
+  "clips": [
+    {
+      "preset": "clean_fullbleed",
+      "subtitle_font": "Jua",
+      "subtitle_font_by_suffix": {
+        "jp": "Hiragino Maru Gothic ProN"
+      },
+      "subtitle_renderer": "image",
+      "subtitle_size_delta": 2,
+      "subtitle_max_width_ratio": 0.84,
+      "fade_in_sec": 0.45,
+      "fade_out_sec": 1.2,
+      "title": "아차산 듣고 웃은 이유",
+      "name": "1_침묵해주세요.mp4"
+    }
+  ]
+}

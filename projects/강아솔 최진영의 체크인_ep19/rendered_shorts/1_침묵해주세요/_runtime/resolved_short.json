@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "short_id": "1_침묵해주세요",
+  "brief": "잔잔한 라디오 톤으로 아차산과 남산 이야기를 주고받는 유머 구간",
+  "source_video": "/Users/shlee/Developments/gen-shorts/projects/wduo8vzCkuw/source/강아솔 최진영의 체크인19화 - Guest. 김화진 작가님 ⧸시즌2 마지막회.mp4",
+  "source_srt": "/Users/shlee/Developments/gen-shorts/projects/wduo8vzCkuw/shorts/1_침묵해주세요/subtitle.srt",
+  "output_dir": "/Users/shlee/Developments/gen-shorts/projects/wduo8vzCkuw/rendered_shorts/1_침묵해주세요",
+  "targets": [
+    {
+      "code": "KR",
+      "suffix": "kr",
+      "language": "ko",
+      "label": "한국어 (KR)",
+      "country_name": "South Korea",
+      "use_original_subtitle": true
+    },
+    {
+      "code": "US",
+      "suffix": "us",
+      "language": "en",
+      "label": "English (US)",
+      "country_name": "United States"
+    },
+    {
+      "code": "JP",
+      "suffix": "jp",
+      "language": "ja",
+      "label": "日本語 (JP)",
+      "country_name": "Japan"
+    }
+  ],
+  "include_nosub": false,
+  "publish": {
+    "title": "아차산 듣고 웃은 이유",
+    "description": "아차산을 듣고 빵 터졌다가 남산 버스 고백까지 이어지는 잔잔한 등산 농담",
+    "tags": [
+      "체크인",
+      "김화진",
+      "강아솔",
+      "최진영",
+      "아차산",
+      "쇼츠"
+    ]
+  },
+  "review": {
+    "requires_confirmation": true,
+    "estimated_duration_sec": 57.0,
+    "estimated_duration_label": "00:57",
+    "warnings": [
+      "예상 길이 00:57로 권장 길이 00:35를 넘습니다."
+    ]
+  },
+  "clip": {
+    "start": "00:34:33",
+    "duration": "00:00:57",
+    "crop": "",
+    "output_name": "1_침묵해주세요.mp4"
+  },
+  "format": {
+    "preset": "clean_fullbleed",
+    "subtitle_font": "Jua",
+    "subtitle_font_by_suffix": {
+      "jp": "Hiragino Maru Gothic ProN"
+    },
+    "subtitle_renderer": "image",
+    "subtitle_size_delta": 2,
+    "subtitle_max_width_ratio": 0.84,
+    "fade_in_sec": 0.45,
+    "fade_out_sec": 1.2,
+    "title": "아차산 듣고 웃은 이유"
+  },
+  "subtitle_tracks": [
+    {
+      "suffix": "kr",
+      "label": "한국어 (KR)",
+      "srt": "/Users/shlee/Developments/gen-shorts/projects/wduo8vzCkuw/shorts/1_침묵해주세요/subtitle.srt"
+    },
+    {
+      "suffix": "us",
+      "label": "English (US)",
+      "srt": "/Users/shlee/Developments/gen-shorts/projects/wduo8vzCkuw/shorts/1_침묵해주세요/subtitle_en.srt"
+    },
+    {
+      "suffix": "jp",
+      "label": "日本語 (JP)",
+      "srt": "/Users/shlee/Developments/gen-shorts/projects/wduo8vzCkuw/shorts/1_침묵해주세요/subtitle_ja.srt"
+    }
+  ]
+}
