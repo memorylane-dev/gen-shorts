@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "short_id": "서울사람_장들레",
+  "brief": "반복되는 애니메이션 화면을 한 화면 그대로 유지하고 서울 사람 같은 말투를 짚는 짧은 대화 구간을 한국어 자막 쇼츠로 만들기",
+  "source_video": "../../source/썬더릴리 루카마이너의 S&L 17화.mp4",
+  "source_srt": "../../subtitle.srt",
+  "output_dir": "../../rendered_shorts/서울사람_장들레",
+  "targets": [
+    "KR",
+    "US",
+    "JP"
+  ],
+  "include_nosub": true,
+  "review": {
+    "requires_confirmation": false,
+    "estimated_duration_sec": 24.14,
+    "estimated_duration_label": "00:24",
+    "warnings": []
+  },
+  "publish": {
+    "title": "서울 사람 장들레",
+    "description": "장들레의 서울 말투를 짚는 짧은 티키타카 장면",
+    "tags": [
+      "썬더릴리",
+      "루카마이너",
+      "장들레",
+      "와우산라디오",
+      "쇼츠"
+    ]
+  },
+  "clip": {
+    "start": "00:07:36.700",
+    "duration": "00:00:24.140",
+    "crop": "0~10",
+    "output_name": "서울사람_장들레.mp4"
+  },
+  "format": {
+    "preset": "clean_fullbleed",
+    "title": "서울 사람 장들레",
+    "subtitle_renderer": "image",
+    "subtitle_font": "Jua",
+    "subtitle_font_by_suffix": {
+      "jp": "Hiragino Maru Gothic ProN"
+    },
+    "subtitle_size_delta": -38,
+    "subtitle_max_width_ratio": 0.58,
+    "fade_in_sec": 0.35,
+    "fade_out_sec": 0.8
+  }
+}
