@@ -1,0 +1,16 @@
+{
+  "clips": [
+    {
+      "preset": "clean_fullbleed",
+      "font_profile": "cute_multilingual",
+      "subtitle_size_delta": -26,
+      "subtitle_max_width_ratio": 0.54,
+      "subtitle_min_side_margin_px": 150,
+      "subtitle_autofit_min_font_size": 20,
+      "fade_in_sec": 0.35,
+      "fade_out_sec": 0.8,
+      "title": "흙 먹었니?",
+      "name": "흙먹었니.mp4"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "tracks": [
+    {
+      "suffix": "nosub",
+      "label": "자막 없음"
+    },
+    {
+      "suffix": "us",
+      "label": "English (US)",
+      "srt": "/Users/shlee/development/gshorts/projects/외로움에_대하여_feat_야한얘기/shorts/흙먹었니/subtitle_en.srt"
+    },
+    {
+      "suffix": "jp",
+      "label": "日本語 (JP)",
+      "srt": "/Users/shlee/development/gshorts/projects/외로움에_대하여_feat_야한얘기/shorts/흙먹었니/subtitle_ja.srt"
+    }
+  ]
+}

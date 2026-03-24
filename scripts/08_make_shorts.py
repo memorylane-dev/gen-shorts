@@ -1134,9 +1134,12 @@ def render_image_subtitle_card(text, output_path, format_options):
 
     font_name = format_options.get("subtitle_font", SUBTITLE_FONT)
     font_file = format_options.get("subtitle_fontfile")
-    font_size = max(1, round(SUBTITLE_SIZE_RATIO * OUTPUT_HEIGHT) + int(format_options.get("subtitle_size_delta", 0)))
+    base_font_size = max(1, round(SUBTITLE_SIZE_RATIO * OUTPUT_HEIGHT) + int(format_options.get("subtitle_size_delta", 0)))
     max_width_ratio = float(format_options.get("subtitle_max_width_ratio", DEFAULT_SUBTITLE_MAX_WIDTH_RATIO))
-    max_width = max(200, int(OUTPUT_WIDTH * max_width_ratio))
+    min_side_margin_px = int(format_options.get("subtitle_min_side_margin_px", 0) or 0)
+    target_max_width = max(200, int(OUTPUT_WIDTH * max_width_ratio))
+    if min_side_margin_px > 0:
+        target_max_width = min(target_max_width, max(200, OUTPUT_WIDTH - min_side_margin_px * 2))
     line_spacing = int(format_options.get("subtitle_line_spacing", 6))
     box_color = str(format_options.get("subtitle_box_color", "black@0.55"))
     text_color = str(format_options.get("subtitle_text_color", "white"))
@@ -1144,6 +1147,9 @@ def render_image_subtitle_card(text, output_path, format_options):
     padding_y = int(format_options.get("subtitle_box_padding_y", 18))
     corner_radius = int(format_options.get("subtitle_corner_radius", 22))
     align = str(format_options.get("subtitle_align", "center")).strip().lower() or "center"
+    autofit_step = max(1, int(format_options.get("subtitle_autofit_step", 2) or 2))
+    autofit_min_font_size = max(1, int(format_options.get("subtitle_autofit_min_font_size", 22) or 22))
+    autofit_max_attempts = max(1, int(format_options.get("subtitle_autofit_max_attempts", 12) or 12))
 
     text_path = f"{output_path}.txt"
     with open(text_path, "w", encoding="utf-8") as f:
@@ -1155,28 +1161,64 @@ def render_image_subtitle_card(text, output_path, format_options):
     env["SWIFT_MODULECACHE_PATH"] = cache_dir
     env["CLANG_MODULE_CACHE_PATH"] = cache_dir
 
-    cmd = [
-        "swift",
-        IMAGE_SUBTITLE_RENDERER_PATH,
-        "--text-file", text_path,
-        "--output", output_path,
-        "--max-width", str(max_width),
-        "--font-name", font_name,
-        "--font-size", str(font_size),
-        "--line-spacing", str(line_spacing),
-        "--padding-x", str(padding_x),
-        "--padding-y", str(padding_y),
-        "--box-color", box_color,
-        "--text-color", text_color,
-        "--corner-radius", str(corner_radius),
-        "--align", align,
-    ]
-    if font_file:
-        cmd += ["--font-file", font_file]
-    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
-    if result.returncode != 0:
-        stderr = (result.stderr or result.stdout or "").strip()
-        raise SystemExit(f"subtitle image 생성 실패: {stderr}")
+    metrics_path = f"{output_path}.metrics.json"
+    font_size = base_font_size
+    last_metrics = None
+    attempts = 0
+
+    while True:
+        attempts += 1
+        cmd = [
+            "swift",
+            IMAGE_SUBTITLE_RENDERER_PATH,
+            "--text-file", text_path,
+            "--output", output_path,
+            "--metrics-out", metrics_path,
+            "--max-width", str(target_max_width),
+            "--font-name", font_name,
+            "--font-size", str(font_size),
+            "--line-spacing", str(line_spacing),
+            "--padding-x", str(padding_x),
+            "--padding-y", str(padding_y),
+            "--box-color", box_color,
+            "--text-color", text_color,
+            "--corner-radius", str(corner_radius),
+            "--align", align,
+        ]
+        if font_file:
+            cmd += ["--font-file", font_file]
+        result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        if result.returncode != 0:
+            stderr = (result.stderr or result.stdout or "").strip()
+            raise SystemExit(f"subtitle image 생성 실패: {stderr}")
+
+        try:
+            with open(metrics_path, "r", encoding="utf-8") as f:
+                last_metrics = json.load(f)
+        except Exception:
+            last_metrics = None
+
+        image_width = int(last_metrics.get("image_width", 0)) if isinstance(last_metrics, dict) else 0
+        side_margin = (OUTPUT_WIDTH - image_width) / 2 if image_width else OUTPUT_WIDTH / 2
+        fits_side_margin = (min_side_margin_px <= 0) or (side_margin >= min_side_margin_px)
+        fits_width = (image_width <= target_max_width + 1) if image_width else True
+
+        if fits_side_margin and fits_width:
+            if font_size != base_font_size:
+                print(
+                    f"  subtitle autofit: '{text[:24].replace(chr(10), ' / ')}' "
+                    f"font {base_font_size}->{font_size}, image_width={image_width}, side_margin={side_margin:.0f}px"
+                )
+            break
+
+        if font_size <= autofit_min_font_size or attempts >= autofit_max_attempts:
+            print(
+                f"  Warn: subtitle autofit reached limit for '{text[:24].replace(chr(10), ' / ')}' "
+                f"(font={font_size}, image_width={image_width}, side_margin={side_margin:.0f}px)"
+            )
+            break
+
+        font_size = max(autofit_min_font_size, font_size - autofit_step)
 
 
 def build_image_subtitle_assets(srt_path, format_options, tmpdir):

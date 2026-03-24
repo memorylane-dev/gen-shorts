@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "short_id": "왜외로운지좀알게됐어",
+  "brief": "송은이가 외로움을 해석하는 짧은 반응형 대화 구간을 전체 프레임 그대로 살려 영어와 일본어 쇼츠로 만들기",
+  "source_video": "/Users/shlee/development/gshorts/projects/외로움에_대하여_feat_야한얘기/source/외로움에 대하여... (feat.야한얘기) ｜김윤주, 박세진, 요조, 송은이, 오채진PD).mp4",
+  "source_srt": "/Users/shlee/development/gshorts/projects/외로움에_대하여_feat_야한얘기/shorts/왜외로운지좀알게됐어/subtitle.srt",
+  "output_dir": "/Users/shlee/development/gshorts/projects/외로움에_대하여_feat_야한얘기/rendered_shorts/왜외로운지좀알게됐어",
+  "targets": [
+    {
+      "code": "US",
+      "suffix": "us",
+      "language": "en",
+      "label": "English (US)",
+      "country_name": "United States"
+    },
+    {
+      "code": "JP",
+      "suffix": "jp",
+      "language": "ja",
+      "label": "日本語 (JP)",
+      "country_name": "Japan"
+    }
+  ],
+  "include_nosub": true,
+  "publish": {
+    "title": "왜 외로운지 좀 알게 됐어",
+    "description": "외로움을 어떻게 느끼는지에 대한 질문 끝에 송은이가 담담하게 답하는 반응형 구간",
+    "tags": [
+      "와우산TV",
+      "송은이",
+      "박세진",
+      "요조",
+      "오채진",
+      "쇼츠"
+    ]
+  },
+  "review": {
+    "requires_confirmation": true,
+    "estimated_duration_sec": 38.88,
+    "estimated_duration_label": "00:39",
+    "warnings": [
+      "예상 길이 00:39로 권장 길이 00:35를 넘습니다."
+    ],
+    "subtitle_source_origin": "../../subtitle.srt",
+    "subtitle_context_before_sec": 15.0,
+    "subtitle_context_after_sec": 15.0
+  },
+  "clip": {
+    "start": "00:13:35.300",
+    "duration": "00:00:38.880",
+    "crop": "0~10",
+    "output_name": "왜외로운지좀알게됐어.mp4"
+  },
+  "format": {
+    "preset": "clean_fullbleed",
+    "font_profile": "cute_multilingual",
+    "subtitle_size_delta": -26,
+    "subtitle_max_width_ratio": 0.54,
+    "subtitle_min_side_margin_px": 150,
+    "subtitle_autofit_min_font_size": 20,
+    "fade_in_sec": 0.35,
+    "fade_out_sec": 0.8,
+    "title": "왜 외로운지 좀 알게 됐어"
+  },
+  "subtitle_tracks": [
+    {
+      "suffix": "nosub",
+      "label": "자막 없음"
+    },
+    {
+      "suffix": "us",
+      "label": "English (US)",
+      "srt": "/Users/shlee/development/gshorts/projects/외로움에_대하여_feat_야한얘기/shorts/왜외로운지좀알게됐어/subtitle_en.srt"
+    },
+    {
+      "suffix": "jp",
+      "label": "日本語 (JP)",
+      "srt": "/Users/shlee/development/gshorts/projects/외로움에_대하여_feat_야한얘기/shorts/왜외로운지좀알게됐어/subtitle_ja.srt"
+    }
+  ]
+}

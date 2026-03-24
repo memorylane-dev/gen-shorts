@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "short_id": "흙먹었니",
+  "brief": "송은이가 흙 먹었니를 반복해서 묻는 밈형 대화 구간을 전체 프레임 그대로 살려 영어와 일본어 쇼츠로 만들기",
+  "source_video": "../../source/외로움에 대하여... (feat.야한얘기) ｜김윤주, 박세진, 요조, 송은이, 오채진PD).mp4",
+  "source_srt": "./subtitle.srt",
+  "output_dir": "../../rendered_shorts/흙먹었니",
+  "targets": [
+    "US",
+    "JP"
+  ],
+  "include_nosub": true,
+  "review": {
+    "requires_confirmation": true,
+    "estimated_duration_sec": 20.18,
+    "estimated_duration_label": "00:20",
+    "warnings": [],
+    "subtitle_source_origin": "../../subtitle.srt",
+    "subtitle_context_before_sec": 15.0,
+    "subtitle_context_after_sec": 15.0
+  },
+  "publish": {
+    "title": "흙 먹었니?",
+    "description": "흙 먹었니를 반복해서 묻는 밈형 티키타카 구간",
+    "tags": [
+      "와우산TV",
+      "송은이",
+      "박세진",
+      "요조",
+      "오채진",
+      "쇼츠"
+    ]
+  },
+  "clip": {
+    "start": "00:59:56.780",
+    "duration": "00:00:20.180",
+    "crop": "0~10",
+    "output_name": "흙먹었니.mp4"
+  },
+  "format": {
+    "preset": "clean_fullbleed",
+    "font_profile": "cute_multilingual",
+    "subtitle_size_delta": -26,
+    "subtitle_max_width_ratio": 0.54,
+    "subtitle_min_side_margin_px": 150,
+    "subtitle_autofit_min_font_size": 20,
+    "fade_in_sec": 0.35,
+    "fade_out_sec": 0.8
+  }
+}

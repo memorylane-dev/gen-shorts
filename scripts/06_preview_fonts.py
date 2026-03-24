@@ -199,7 +199,7 @@ def escape_drawtext_text(text):
     )
 
 
-def render_image_subtitle_card(text, font_name, font_file, font_size, max_width_ratio, output_path):
+def render_image_subtitle_card(text, font_name, font_file, font_size, max_width_ratio, output_path, min_side_margin_px=0):
     if not os.path.exists(IMAGE_SUBTITLE_RENDERER_PATH):
         raise SystemExit(f"subtitle image renderer 스크립트가 없습니다: {IMAGE_SUBTITLE_RENDERER_PATH}")
 
@@ -208,6 +208,8 @@ def render_image_subtitle_card(text, font_name, font_file, font_size, max_width_
         f.write(text)
 
     max_width = max(200, int(OUTPUT_WIDTH * max_width_ratio))
+    if min_side_margin_px > 0:
+        max_width = min(max_width, max(200, OUTPUT_WIDTH - min_side_margin_px * 2))
     cmd = [
         "swift",
         IMAGE_SUBTITLE_RENDERER_PATH,

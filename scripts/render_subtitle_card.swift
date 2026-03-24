@@ -6,6 +6,7 @@ import Foundation
 struct Options {
     var textFile = ""
     var output = ""
+    var metricsOut = ""
     var fontFile = ""
     var maxWidth: CGFloat = 900
     var fontName = "BM JUA OTF"
@@ -32,6 +33,9 @@ func parseArgs() -> Options {
             idx += 2
         case "--output":
             options.output = value
+            idx += 2
+        case "--metrics-out":
+            options.metricsOut = value
             idx += 2
         case "--font-file":
             options.fontFile = value
@@ -238,6 +242,19 @@ do {
     }
 
     try png.write(to: URL(fileURLWithPath: options.output))
+
+    if !options.metricsOut.isEmpty {
+        let metrics: [String: Any] = [
+            "image_width": Int(ceil(imageSize.width)),
+            "image_height": Int(ceil(imageSize.height)),
+            "text_width": Int(ceil(drawingRect.width)),
+            "text_height": Int(ceil(drawingRect.height)),
+            "max_width": Int(ceil(options.maxWidth)),
+            "font_size": Double(options.fontSize),
+        ]
+        let data = try JSONSerialization.data(withJSONObject: metrics, options: [.prettyPrinted])
+        try data.write(to: URL(fileURLWithPath: options.metricsOut))
+    }
 } catch {
     fputs("error: \(error.localizedDescription)\n", stderr)
     exit(1)

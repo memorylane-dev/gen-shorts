@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "short_id": "박세진의_만약에",
+  "brief": "박세진의 만약에 질문과 송은이의 백억 CEO 답변이 오가는 상황극형 대화 구간을 전체 프레임 그대로 살려 영어와 일본어 쇼츠로 만들기",
+  "source_video": "../../source/외로움에 대하여... (feat.야한얘기) ｜김윤주, 박세진, 요조, 송은이, 오채진PD).mp4",
+  "source_srt": "./subtitle.srt",
+  "output_dir": "../../rendered_shorts/박세진의_만약에",
+  "targets": [
+    "US",
+    "JP"
+  ],
+  "include_nosub": true,
+  "review": {
+    "requires_confirmation": true,
+    "estimated_duration_sec": 39.6,
+    "estimated_duration_label": "00:40",
+    "warnings": [
+      "예상 길이 00:40로 권장 길이 00:35를 넘습니다."
+    ],
+    "subtitle_source_origin": "../../subtitle.srt",
+    "subtitle_context_before_sec": 15.0,
+    "subtitle_context_after_sec": 15.0
+  },
+  "publish": {
+    "title": "박세진의 만약에",
+    "description": "먼 친척이 백억을 남겼다는 상상 질문에 송은이가 재치 있게 답하는 상황극형 구간",
+    "tags": [
+      "와우산TV",
+      "박세진",
+      "송은이",
+      "요조",
+      "오채진",
+      "쇼츠"
+    ]
+  },
+  "clip": {
+    "start": "00:23:21.840",
+    "duration": "00:00:39.600",
+    "crop": "0~10",
+    "output_name": "박세진의_만약에.mp4"
+  },
+  "format": {
+    "preset": "clean_fullbleed",
+    "font_profile": "cute_multilingual",
+    "subtitle_size_delta": -26,
+    "subtitle_max_width_ratio": 0.54,
+    "subtitle_min_side_margin_px": 150,
+    "subtitle_autofit_min_font_size": 20,
+    "fade_in_sec": 0.35,
+    "fade_out_sec": 0.8
+  }
+}
