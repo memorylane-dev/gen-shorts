@@ -110,7 +110,15 @@ spec 요약 보기:
 
 ```bash
 python3 ./scripts/gshorts.py describe-short \
-  --spec "projects/프로젝트명/shorts/my_short.json"
+  --spec "projects/프로젝트명/shorts/my_short/short.json"
+```
+
+short 폴더용 자막 워크스페이스 다시 동기화:
+
+```bash
+python3 ./scripts/gshorts.py sync-short-assets \
+  --spec "projects/프로젝트명/shorts/my_short/short.json" \
+  --force
 ```
 
 `init-short`가 도와주는 것:
@@ -121,6 +129,7 @@ python3 ./scripts/gshorts.py describe-short \
 - preset 설명을 보여주며 선택
 - 국가/로캘 target을 번호 또는 코드로 선택
 - upload title / description / tags / notes를 spec에 저장
+- 기본 spec 위치를 `shorts/<short_id>/short.json`으로 잡고, 같은 폴더에 `subtitle.ko-orig.srt`, `subtitle.srt`, `previews/clip_subtitles_review.txt`를 함께 준비
 
 `draft-short`가 해주는 것:
 
@@ -128,19 +137,20 @@ python3 ./scripts/gshorts.py describe-short \
 - country/locale target 추천
 - clip 후보 관련도 점수 기반 추천
 - spec 초안을 바로 파일로 저장
+- short 폴더 구조를 쓰면 클립 앞뒤 15초 컨텍스트가 포함된 로컬 자막 워크스페이스를 같이 생성
 
 spec 하나 빌드:
 
 ```bash
 python3 ./scripts/gshorts.py build-short \
-  --spec "projects/프로젝트명/shorts/my_short.json"
+  --spec "projects/프로젝트명/shorts/my_short/short.json"
 ```
 
 요약을 이미 확인했다면:
 
 ```bash
 python3 ./scripts/gshorts.py build-short \
-  --spec "projects/프로젝트명/shorts/my_short.json" \
+  --spec "projects/프로젝트명/shorts/my_short/short.json" \
   --yes
 ```
 
@@ -151,6 +161,7 @@ python3 ./scripts/gshorts.py build-short \
 - short spec에서 클립/포맷/runtime 파일을 자동 생성
 - 필요한 번역 자막이 이미 있으면 재사용
 - 필요한 번역 자막이 없으면 누락된 언어만 생성
+- 번역/렌더 subprocess는 현재 Python 실행 환경을 그대로 사용해 venv 누락 가능성을 줄임
 - 최종 렌더는 내부적으로 `08_make_shorts.py`를 호출
 - `_runtime/resolved_short.json`에 실제 빌드에 사용된 resolved manifest를 저장
 
@@ -180,6 +191,14 @@ spec의 주요 필드:
 - 피하고 싶은 요소: 예) `너무 긴 setup`, `과한 자막`, `영문 제외`
 
 시스템은 먼저 brief를 바탕으로 spec 초안을 만들고, **클립/포맷/타겟/예상 길이 확인 단계**를 거친 뒤 렌더하도록 설계한다.
+
+권장 short 작업 흐름:
+
+1. `list-clips`나 `04b_extract_clip_subs.py`로 후보를 고를 때 실제 후보 앞뒤 15초까지 함께 검토한다.
+2. `init-short` 또는 `draft-short`로 `shorts/<short_id>/short.json`을 만든다.
+3. 생성된 `shorts/<short_id>/subtitle.srt`를 쇼츠 전용 수정본으로 다듬고, 필요하면 `subtitle.ko-orig.srt`와 비교한다.
+4. clip 시간이 바뀌면 `sync-short-assets --force`로 로컬 자막/검토 파일을 다시 맞춘다.
+5. 마지막에 `build-short`로 KR/다국어 렌더를 만든다.
 
 ---
 
@@ -259,11 +278,14 @@ python3 ./scripts/03_analyze.py \
 python3 ./scripts/04b_extract_clip_subs.py \
   --srt "workspace/subtitle.srt" \
   --clips clips.txt \
-  --outdir previews
+  --outdir previews \
+  --context-before 15 \
+  --context-after 15
 ```
 
 각 클립에 해당하는 자막을 추출하여 개별 파일 + 전체 요약 파일(`clip_subtitles_review.txt`)을 생성.
-번역 전에 자막 내용(오탈자, Whisper 인식 오류 등)을 검토·수정할 수 있다.
+기본값으로 실제 후보 앞뒤 15초를 함께 보여주며, `>>`로 표시된 줄이 실제 쇼츠 범위다.
+번역 전에 자막 내용(오탈자, Whisper 인식 오류, 시작/끝 맥락)을 검토·수정할 수 있다.
 
 ### 5. 크롭 미리보기
 
@@ -313,14 +335,24 @@ python3 ./scripts/06_preview_fonts.py \
   --input "workspace/영상.mp4" \
   --clips clips.txt \
   --srt "workspace/subtitle.srt" \
-  --sizes 16,20,24,32 \
+  --renderer image \
+  --font-profile cute_multilingual \
+  --target-suffix jp \
   --outdir previews
 ```
 
 각 폰트 후보로 자막을 입힌 프레임 이미지 생성. 기본 비교 크기는 `16,20,24,32`.
-폰트 미리보기는 기본적으로 `drawtext` 기준 비교다. 최종 short가 `subtitle_renderer: "image"`를 쓰는 경우에는, 실제 렌더에서 AppKit fallback이 추가되어 emoji/일본어가 더 잘 보일 수 있다.
+이제 기본값은 실제 쇼츠와 같은 `image` renderer 기준 비교다. 필요하면 `--renderer drawtext`로 예전 방식도 볼 수 있다.
+`--font-profile`을 주면 short spec에 넣을 예정인 프로필 기준 폰트로 바로 프리뷰할 수 있다.
 
 **폰트 적용**: `08_make_shorts.py` 상단의 `SUBTITLE_FONT`, `SUBTITLE_SIZE_RATIO`, `SUBTITLE_Y_RATIO`, `_SUBTITLE_BASE`로 조정.
+
+자주 쓰는 `font_profile`:
+
+- `cute_ko` — Jua 기반, 한국어 단독용
+- `cute_multilingual` — Jua 기반 + 일본어는 `Hiragino Maru Gothic ProN`
+- `clean_sans` — SUIT 기반 + 일본어는 `Hiragino Sans`
+- `safe_multilingual` — Apple SD Gothic Neo 기반 + 일본어는 `Hiragino Sans`
 
 **외부 폰트 추가**:
 1. `.ttf` 또는 `.otf` 파일 준비
@@ -404,6 +436,7 @@ python3 ./scripts/08_make_shorts.py \
 - 자막 길이가 길어서 화면을 벗어날 수 있으면 `image` renderer를 사용한다. `image` renderer는 카드 폭 기준으로 자동 줄바꿈을 수행한다.
 - `drawtext`를 유지한다면 긴 문장은 SRT에서 수동으로 줄바꿈해 둔다.
 - `image` renderer는 설치된 폰트를 이름으로 찾을 때 `Jua`, `BM JUA OTF`, `Nanum Pen Script`처럼 사람이 말하는 이름을 최대한 자동 해석해 해당 폰트 파일을 등록한다. 다만 같은 이름 후보가 여러 개인 경우에는 더 구체적인 이름을 쓰는 것이 안전하다.
+- 반복적으로 쓰는 조합은 `font_profile`로 묶어두고, `subtitle_font` 같은 명시값이 있으면 그 값이 우선한다.
 
 예시:
 
@@ -411,6 +444,7 @@ python3 ./scripts/08_make_shorts.py \
 {
   "format": {
     "preset": "clean_fullbleed",
+    "font_profile": "cute_multilingual",
     "subtitle_renderer": "image",
     "subtitle_font": "BM JUA OTF",
     "subtitle_font_by_suffix": {
@@ -514,8 +548,10 @@ python3 ./scripts/08_make_shorts.py \
 | `secondary_crop` | 두 번째 영상 크롭 스펙 (`2~8`, `+300` 등) |
 | `primary_label` / `secondary_label` | split 포맷 패널 라벨 |
 | `subtitle_renderer` | `libass`, `drawtext`, `image` 중 선택 |
+| `font_profile` | 자주 쓰는 자막 폰트/렌더러 조합 이름 (`cute_multilingual` 등) |
 | `subtitle_font` | 자막 폰트 이름 |
 | `subtitle_fontfile` | `drawtext`용 절대/상대 폰트 파일 경로 |
+| `font_profile_by_suffix` | target별 `font_profile` override |
 | `subtitle_font_by_suffix` | `{"jp": "Hiragino Maru Gothic ProN"}` 같은 target별 폰트 override |
 | `subtitle_fontfile_by_suffix` | target별 폰트 파일 override |
 | `subtitle_renderer_by_suffix` | target별 렌더러 override |

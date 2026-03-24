@@ -23,6 +23,7 @@ import tempfile
 import shutil
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor
+from font_profiles import apply_font_profile_defaults
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IMAGE_SUBTITLE_RENDERER_PATH = os.path.join(SCRIPT_DIR, "render_subtitle_card.swift")
@@ -703,6 +704,7 @@ def normalize_format_entry(entry, base_dir, fallback_preset):
         "split_play_mode",
         "subtitle_renderer",
         "subtitle_font",
+        "font_profile",
     ):
         if data.get(key) is not None:
             data[key] = str(data[key]).strip()
@@ -773,6 +775,16 @@ def normalize_format_entry(entry, base_dir, fallback_preset):
         data["subtitle_font_by_suffix"] = {
             str(key).strip(): str(value).strip()
             for key, value in subtitle_font_by_suffix.items()
+            if str(key).strip() and str(value).strip()
+        }
+
+    font_profile_by_suffix = data.get("font_profile_by_suffix")
+    if font_profile_by_suffix is not None:
+        if not isinstance(font_profile_by_suffix, dict):
+            raise SystemExit("font_profile_by_suffix는 객체여야 합니다.")
+        data["font_profile_by_suffix"] = {
+            str(key).strip(): str(value).strip()
+            for key, value in font_profile_by_suffix.items()
             if str(key).strip() and str(value).strip()
         }
 
@@ -854,11 +866,25 @@ def get_clip_format_options(clip_name, format_config):
                 continue
             merged[key] = value
 
+    if merged.get("font_profile"):
+        try:
+            merged = apply_font_profile_defaults(merged, merged["font_profile"])
+        except ValueError as exc:
+            raise SystemExit(str(exc))
+
     return merged
 
 
 def apply_track_format_overrides(format_options, suffix):
     merged = dict(format_options)
+
+    font_profile_by_suffix = merged.get("font_profile_by_suffix")
+    if isinstance(font_profile_by_suffix, dict) and suffix in font_profile_by_suffix:
+        try:
+            merged = apply_font_profile_defaults(merged, font_profile_by_suffix[suffix])
+        except ValueError as exc:
+            raise SystemExit(str(exc))
+
     for key in (
         "subtitle_font",
         "subtitle_fontfile",
@@ -877,7 +903,26 @@ def apply_track_format_overrides(format_options, suffix):
         if resolved:
             merged["subtitle_fontfile"] = resolved["file"]
             merged.setdefault("subtitle_font_resolved_alias", resolved["alias"])
+        else:
+            merged.setdefault("subtitle_font_resolution_note", "font file unresolved; renderer fallback may differ")
     return merged
+
+
+def describe_subtitle_style(format_options):
+    renderer = (format_options.get("subtitle_renderer") or "libass").strip().lower()
+    font_name = format_options.get("subtitle_font", SUBTITLE_FONT)
+    font_file = format_options.get("subtitle_fontfile")
+    resolved_alias = format_options.get("subtitle_font_resolved_alias")
+    if renderer == "libass":
+        return f"{renderer}, font='{font_name}'"
+    if font_file and resolved_alias:
+        return f"{renderer}, font='{font_name}' -> '{resolved_alias}' ({os.path.basename(font_file)})"
+    if font_file:
+        return f"{renderer}, font='{font_name}' ({os.path.basename(font_file)})"
+    note = format_options.get("subtitle_font_resolution_note")
+    if note:
+        return f"{renderer}, font='{font_name}' ({note})"
+    return f"{renderer}, font='{font_name}'"
 
 
 def get_secondary_media_info(primary_input, clip_ss, clip_t, format_options):
@@ -1538,6 +1583,13 @@ def main():
     available_langs = load_subtitle_tracks(args.srtdir, args.subtitle_config)
 
     print(f"Languages: {', '.join(f'{l[2]}' for l in available_langs)}")
+    print("Subtitle styles:")
+    for ss, t, name, _ in clips:
+        base_format_options = get_clip_format_options(name, format_config)
+        print(f"  {name}:")
+        for suffix, _, label in available_langs:
+            format_options = apply_track_format_overrides(base_format_options, suffix)
+            print(f"    [{suffix}] {label}: {describe_subtitle_style(format_options)}")
     total = len(clips) * len(available_langs)
     print(f"Total: {total} videos\n")
 

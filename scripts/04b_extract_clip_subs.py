@@ -2,8 +2,8 @@
 """
 Step 4b: 클립별 자막 추출 (번역 전 검토용)
 - clips.txt와 subtitle.srt를 읽어 각 클립에 해당하는 자막을 추출
+- 실제 후보 앞뒤 컨텍스트를 함께 보여줘 시작/끝 맥락을 검토할 수 있게 함
 - 클립별 개별 파일 + 전체 요약 파일 생성
-- 번역 전에 자막 내용을 검토/수정할 수 있도록 함
 
 사용법:
   python3 04b_extract_clip_subs.py --srt subtitle.srt --clips clips.txt [--outdir previews]
@@ -19,10 +19,16 @@ def ts_to_sec(ts):
     return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
 
 
-def sec_to_mmss(sec):
-    m = int(sec // 60)
-    s = int(sec % 60)
-    return f"{m:02d}:{s:02d}"
+def sec_to_clock(sec):
+    total = max(0, int(float(sec)))
+    h = total // 3600
+    m = (total % 3600) // 60
+    s = total % 60
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
+
+def normalize_review_text(text):
+    return " / ".join(part.strip() for part in str(text or "").splitlines() if part.strip())
 
 
 def parse_srt(path):
@@ -71,14 +77,27 @@ def parse_clips(path):
     return clips
 
 
-def extract_clip_subs(entries, clip_start, clip_end, margin=1.0):
-    """클립 구간에 해당하는 자막 추출 (앞뒤 margin초 여유)"""
+def overlaps(start, end, range_start, range_end):
+    return end >= range_start and start <= range_end
+
+
+def starts_within(start, range_start, range_end):
+    return range_start <= start < range_end
+
+
+def extract_clip_subs(entries, clip_start, clip_end, context_before=15.0, context_after=15.0):
+    """클립 구간에 해당하는 자막 추출 (앞뒤 context 포함)"""
+    review_start = max(0.0, clip_start - float(context_before))
+    review_end = clip_end + float(context_after)
     result = []
     for e in entries:
-        if e["end"] < clip_start - margin or e["start"] > clip_end + margin:
+        if not overlaps(e["start"], e["end"], review_start, review_end):
             continue
-        result.append(e)
-    return result
+        result.append({
+            **e,
+            "is_clip": starts_within(e["start"], clip_start, clip_end),
+        })
+    return result, review_start, review_end
 
 
 def main():
@@ -86,6 +105,8 @@ def main():
     parser.add_argument("--srt", "-s", required=True, help="한국어 SRT 파일")
     parser.add_argument("--clips", "-c", required=True, help="클립 목록 파일")
     parser.add_argument("--outdir", "-o", default=".", help="출력 디렉토리")
+    parser.add_argument("--context-before", type=float, default=15.0, help="실제 후보 앞쪽 컨텍스트 초 (기본: 15)")
+    parser.add_argument("--context-after", type=float, default=15.0, help="실제 후보 뒤쪽 컨텍스트 초 (기본: 15)")
     args = parser.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
@@ -101,26 +122,41 @@ def main():
     with open(summary_path, "w", encoding="utf-8") as summary_f:
         summary_f.write("=" * 60 + "\n")
         summary_f.write("클립별 자막 검토 파일\n")
-        summary_f.write("번역 전에 자막 내용을 확인하고 수정하세요.\n")
+        summary_f.write(">> 로 표시된 줄이 실제 쇼츠 후보 범위입니다.\n")
         summary_f.write("=" * 60 + "\n\n")
 
         for clip in clips:
-            subs = extract_clip_subs(entries, clip["start"], clip["end"])
+            subs, review_start, review_end = extract_clip_subs(
+                entries,
+                clip["start"],
+                clip["end"],
+                context_before=args.context_before,
+                context_after=args.context_after,
+            )
             clip_base = os.path.splitext(clip["name"])[0]
 
             # 요약 파일에 추가
             summary_f.write(f"--- [{clip_base}] {clip['ss']} ~ +{clip['t']} ({len(subs)}개 자막) ---\n")
+            summary_f.write(
+                f"  검토 범위: {sec_to_clock(review_start)} ~ {sec_to_clock(review_end)} "
+                f"(앞 {int(args.context_before)}초 / 뒤 {int(args.context_after)}초)\n"
+            )
+            summary_f.write(f"  실제 후보: {sec_to_clock(clip['start'])} ~ {sec_to_clock(clip['end'])}\n")
             for s in subs:
-                rel_start = sec_to_mmss(s["start"])
-                summary_f.write(f"  [{rel_start}] {s['text']}\n")
+                rel_start = sec_to_clock(s["start"])
+                prefix = ">> " if s["is_clip"] else "   "
+                summary_f.write(f"{prefix}[{rel_start}] {normalize_review_text(s['text'])}\n")
             summary_f.write("\n")
 
             # 클립별 개별 파일
             clip_path = os.path.join(args.outdir, f"{clip_base}_subs.txt")
             with open(clip_path, "w", encoding="utf-8") as cf:
+                cf.write(f"[검토 범위] {sec_to_clock(review_start)} - {sec_to_clock(review_end)}\n")
+                cf.write(f"[실제 후보] {sec_to_clock(clip['start'])} - {sec_to_clock(clip['end'])}\n\n")
                 for s in subs:
-                    rel_start = sec_to_mmss(s["start"])
-                    cf.write(f"[{rel_start}] {s['text']}\n")
+                    rel_start = sec_to_clock(s["start"])
+                    prefix = ">> " if s["is_clip"] else "   "
+                    cf.write(f"{prefix}[{rel_start}] {normalize_review_text(s['text'])}\n")
 
             print(f"  {clip['name']}: {len(subs)}개 자막 → {clip_path}")
 

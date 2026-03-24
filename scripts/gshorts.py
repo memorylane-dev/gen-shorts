@@ -22,6 +22,8 @@ from shorts_targets import (
 SCRIPT_DIR = Path(__file__).resolve().parent
 MAKE_SHORTS_PATH = SCRIPT_DIR / "08_make_shorts.py"
 TRANSLATE_PATH = SCRIPT_DIR / "07_translate.py"
+DEFAULT_SUBTITLE_CONTEXT_BEFORE_SEC = 15.0
+DEFAULT_SUBTITLE_CONTEXT_AFTER_SEC = 15.0
 
 PRESET_DESCRIPTIONS = {
     "clean_fullbleed": "기본형. 영상 중심, 자막만 표시",
@@ -35,7 +37,7 @@ PRESET_DESCRIPTIONS = {
 }
 
 REVIEW_SECTION_RE = re.compile(r"^--- \[(.+?)\]\s+(\d{2}:\d{2}:\d{2})")
-REVIEW_TEXT_RE = re.compile(r"^\s+\[\d{2}:\d{2}\]\s+(.+)$")
+REVIEW_TEXT_RE = re.compile(r"^\s*(>>\s*)?\[(?:\d{2}:)?\d{2}:\d{2}\]\s+(.+)$")
 SEARCH_TOKEN_RE = re.compile(r"[0-9A-Za-z가-힣]{2,}")
 HASHTAG_RE = re.compile(r"#([0-9A-Za-z가-힣_\-]+)")
 
@@ -194,6 +196,106 @@ def ts_to_sec(ts):
     if len(parts) != 3:
         raise ValueError(f"잘못된 timestamp 형식: {ts}")
     return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+
+
+def sec_to_srt_timestamp(seconds):
+    total_ms = max(0, int(round(float(seconds) * 1000)))
+    hours, rem = divmod(total_ms, 3_600_000)
+    minutes, rem = divmod(rem, 60_000)
+    secs, millis = divmod(rem, 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+
+
+def sec_to_clock_label(seconds):
+    total_seconds = max(0, int(float(seconds)))
+    hours, rem = divmod(total_seconds, 3600)
+    minutes, secs = divmod(rem, 60)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
+def normalize_review_text(text):
+    return " / ".join(part.strip() for part in str(text or "").splitlines() if part.strip())
+
+
+def parse_srt_entries(path):
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    entries = []
+    for block in re.split(r"\n\s*\n", content.strip()):
+        lines = [line.rstrip() for line in block.splitlines()]
+        if len(lines) < 3:
+            continue
+        timing = lines[1]
+        match = re.match(
+            r"(\d{2}:\d{2}:\d{2}[,\.]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,\.]\d{3})",
+            timing,
+        )
+        if not match:
+            continue
+        entries.append(
+            {
+                "start": ts_to_sec(match.group(1)),
+                "end": ts_to_sec(match.group(2)),
+                "text": "\n".join(lines[2:]).strip(),
+            }
+        )
+    return entries
+
+
+def write_srt_entries(entries, path):
+    with open(path, "w", encoding="utf-8") as f:
+        for idx, entry in enumerate(entries, start=1):
+            if idx > 1:
+                f.write("\n")
+            f.write(f"{idx}\n")
+            f.write(f"{sec_to_srt_timestamp(entry['start'])} --> {sec_to_srt_timestamp(entry['end'])}\n")
+            f.write(f"{entry['text'].rstrip()}\n")
+
+
+def entry_overlaps(entry, range_start, range_end):
+    return entry["end"] >= range_start and entry["start"] <= range_end
+
+
+def entry_starts_within(entry, range_start, range_end):
+    return range_start <= entry["start"] < range_end
+
+
+def extract_srt_window(entries, clip_start, clip_end, context_before_sec, context_after_sec):
+    window_start = max(0.0, clip_start - float(context_before_sec))
+    window_end = clip_end + float(context_after_sec)
+    selected = [entry for entry in entries if entry_overlaps(entry, window_start, window_end)]
+    return selected, window_start, window_end
+
+
+def write_short_review_file(path, short_id, clip_start, clip_end, window_start, window_end, context_before_sec, context_after_sec, entries):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("=" * 60 + "\n")
+        f.write("쇼츠 자막 검토 파일\n")
+        f.write(">> 로 표시된 줄이 실제 쇼츠 후보 범위입니다.\n")
+        f.write("=" * 60 + "\n\n")
+        duration_label = format_duration_label(clip_end - clip_start)
+        f.write(f"--- [{short_id}] {sec_to_clock_label(clip_start)} ~ +{duration_label} ({len(entries)}개 자막) ---\n")
+        f.write(
+            f"  검토 범위: {sec_to_clock_label(window_start)} ~ {sec_to_clock_label(window_end)} "
+            f"(앞 {int(context_before_sec)}초 / 뒤 {int(context_after_sec)}초)\n"
+        )
+        f.write(f"  실제 후보: {sec_to_clock_label(clip_start)} ~ {sec_to_clock_label(clip_end)}\n")
+        for entry in entries:
+            prefix = ">> " if entry_starts_within(entry, clip_start, clip_end) else "   "
+            label = sec_to_clock_label(entry["start"])
+            f.write(f"{prefix}[{label}] {normalize_review_text(entry['text'])}\n")
+        f.write("\n")
+
+
+def default_short_spec_path(project_dir, short_id):
+    return project_dir / "shorts" / short_id / "short.json"
+
+
+def is_workspace_spec_path(spec_path, spec):
+    spec_path = Path(spec_path).resolve()
+    return spec_path.name == "short.json" and spec_path.parent.name == spec["short_id"]
 
 
 def format_duration_label(seconds):
@@ -390,17 +492,21 @@ def infer_include_nosub_from_brief(brief, default=True):
 def parse_review_file(path):
     snippets = {}
     current_name = None
-    texts = []
+    clip_texts = []
+    context_texts = []
 
     with open(path, "r", encoding="utf-8") as f:
         for raw_line in f:
             line = raw_line.rstrip("\n")
             section_match = REVIEW_SECTION_RE.match(line)
             if section_match:
-                if current_name and texts:
-                    snippets[current_name] = " / ".join(texts[:2])
+                if current_name:
+                    chosen = clip_texts or context_texts
+                    if chosen:
+                        snippets[current_name] = " / ".join(chosen[:2])
                 current_name = section_match.group(1).strip()
-                texts = []
+                clip_texts = []
+                context_texts = []
                 continue
 
             if not current_name:
@@ -408,10 +514,16 @@ def parse_review_file(path):
 
             text_match = REVIEW_TEXT_RE.match(line)
             if text_match:
-                texts.append(text_match.group(1).strip())
+                text = text_match.group(2).strip()
+                if text_match.group(1):
+                    clip_texts.append(text)
+                else:
+                    context_texts.append(text)
 
-    if current_name and texts:
-        snippets[current_name] = " / ".join(texts[:2])
+    if current_name:
+        chosen = clip_texts or context_texts
+        if chosen:
+            snippets[current_name] = " / ".join(chosen[:2])
 
     return snippets
 
@@ -1040,6 +1152,97 @@ def load_spec(spec_path):
     return spec_path, refresh_review_summary(spec)
 
 
+def resolve_sync_origin_srt(spec_path, spec, origin_override=None):
+    spec_dir = spec_path.parent
+    if origin_override:
+        return resolve_path(spec_dir, origin_override)
+
+    review = dict(spec.get("review") or {})
+    if review.get("subtitle_source_origin"):
+        return resolve_path(spec_dir, review["subtitle_source_origin"])
+
+    local_origin = spec_dir / "subtitle.ko-orig.srt"
+    if local_origin.exists():
+        return local_origin
+
+    return resolve_path(spec_dir, spec["source_srt"])
+
+
+def sync_short_assets_impl(
+    spec_path,
+    spec,
+    origin_override=None,
+    context_before_sec=DEFAULT_SUBTITLE_CONTEXT_BEFORE_SEC,
+    context_after_sec=DEFAULT_SUBTITLE_CONTEXT_AFTER_SEC,
+    overwrite_editable=False,
+    write_spec=False,
+):
+    spec_path = Path(spec_path).resolve()
+    if not is_workspace_spec_path(spec_path, spec):
+        raise SystemExit("sync-short-assets는 shorts/<short_id>/short.json 형식 spec에서만 지원합니다.")
+
+    spec_dir = spec_path.parent
+    origin_srt = resolve_sync_origin_srt(spec_path, spec, origin_override=origin_override)
+    if not origin_srt.exists():
+        raise SystemExit(f"원본 subtitle.srt를 찾지 못했습니다: {origin_srt}")
+
+    clip_start = ts_to_sec(spec["clip"]["start"])
+    clip_end = clip_start + ts_to_sec(spec["clip"]["duration"])
+    entries = parse_srt_entries(origin_srt)
+    selected_entries, window_start, window_end = extract_srt_window(
+        entries,
+        clip_start,
+        clip_end,
+        context_before_sec,
+        context_after_sec,
+    )
+    if not selected_entries:
+        raise SystemExit("선택한 clip 범위와 겹치는 자막을 찾지 못했습니다.")
+
+    orig_srt_path = spec_dir / "subtitle.ko-orig.srt"
+    editable_srt_path = spec_dir / "subtitle.srt"
+    preview_review_path = spec_dir / "previews" / "clip_subtitles_review.txt"
+
+    write_srt_entries(selected_entries, orig_srt_path)
+    editable_written = False
+    if overwrite_editable or not editable_srt_path.exists():
+        write_srt_entries(selected_entries, editable_srt_path)
+        editable_written = True
+
+    write_short_review_file(
+        preview_review_path,
+        spec["short_id"],
+        clip_start,
+        clip_end,
+        window_start,
+        window_end,
+        context_before_sec,
+        context_after_sec,
+        selected_entries,
+    )
+
+    review = dict(spec.get("review") or {})
+    review["subtitle_source_origin"] = os.path.relpath(origin_srt, spec_dir)
+    review["subtitle_context_before_sec"] = float(context_before_sec)
+    review["subtitle_context_after_sec"] = float(context_after_sec)
+    spec["review"] = review
+    spec["source_srt"] = "./subtitle.srt"
+    spec = refresh_review_summary(spec)
+
+    if write_spec:
+        spec_path.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    return spec, {
+        "origin_srt": origin_srt,
+        "orig_srt_path": orig_srt_path,
+        "editable_srt_path": editable_srt_path,
+        "editable_written": editable_written,
+        "preview_review_path": preview_review_path,
+        "window_start": window_start,
+        "window_end": window_end,
+    }
+
+
 def ensure_translations(spec_path, spec, clips_path, skip_translate):
     spec_dir = spec_path.parent
     source_srt = resolve_path(spec_dir, spec["source_srt"])
@@ -1059,7 +1262,7 @@ def ensure_translations(spec_path, spec, clips_path, skip_translate):
 
     if missing_langs:
         cmd = [
-            "python3",
+            sys.executable,
             str(TRANSLATE_PATH),
             "--srt",
             str(source_srt),
@@ -1158,7 +1361,7 @@ def build_short(args):
     )
 
     cmd = [
-        "python3",
+        sys.executable,
         str(MAKE_SHORTS_PATH),
         "--input",
         str(source_video),
@@ -1186,14 +1389,25 @@ def init_short(args):
     project_dir.mkdir(parents=True, exist_ok=True)
 
     spec = build_spec_dict(project_dir)
-    default_spec_dir = project_dir / "shorts"
-    default_spec_dir.mkdir(parents=True, exist_ok=True)
-    default_spec_path = default_spec_dir / f"{spec['short_id']}.json"
+    default_spec_path = default_short_spec_path(project_dir, spec["short_id"])
     spec_path = Path(args.spec).resolve() if args.spec else default_spec_path
     spec_path.parent.mkdir(parents=True, exist_ok=True)
 
+    origin_srt = resolve_path(project_dir, spec["source_srt"])
     spec = rewrite_spec_paths_for_location(spec, project_dir, spec_path)
     spec_path.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if is_workspace_spec_path(spec_path, spec):
+        spec, sync_info = sync_short_assets_impl(
+            spec_path,
+            spec,
+            origin_override=origin_srt,
+            context_before_sec=args.context_before,
+            context_after_sec=args.context_after,
+            overwrite_editable=False,
+            write_spec=True,
+        )
+        print(f"\nshort 자막 워크스페이스 준비: {sync_info['editable_srt_path']}", flush=True)
+        print(f"검토 파일: {sync_info['preview_review_path']}", flush=True)
     print(f"\nspec 생성: {spec_path}", flush=True)
     print_spec_summary(spec, spec_path=spec_path, heading="spec 확인")
 
@@ -1203,14 +1417,25 @@ def draft_short(args):
     project_dir.mkdir(parents=True, exist_ok=True)
 
     spec = build_draft_spec(project_dir, args.brief)
-    default_spec_dir = project_dir / "shorts"
-    default_spec_dir.mkdir(parents=True, exist_ok=True)
-    default_spec_path = default_spec_dir / f"{spec['short_id']}.json"
+    default_spec_path = default_short_spec_path(project_dir, spec["short_id"])
     spec_path = Path(args.spec).resolve() if args.spec else default_spec_path
     spec_path.parent.mkdir(parents=True, exist_ok=True)
 
+    origin_srt = resolve_path(project_dir, spec["source_srt"])
     spec = rewrite_spec_paths_for_location(spec, project_dir, spec_path)
     spec_path.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if is_workspace_spec_path(spec_path, spec):
+        spec, sync_info = sync_short_assets_impl(
+            spec_path,
+            spec,
+            origin_override=origin_srt,
+            context_before_sec=args.context_before,
+            context_after_sec=args.context_after,
+            overwrite_editable=False,
+            write_spec=True,
+        )
+        print(f"\nshort 자막 워크스페이스 준비: {sync_info['editable_srt_path']}", flush=True)
+        print(f"검토 파일: {sync_info['preview_review_path']}", flush=True)
     print(f"\nspec 초안 생성: {spec_path}", flush=True)
     print_spec_summary(spec, spec_path=spec_path, heading="draft 확인")
 
@@ -1246,6 +1471,31 @@ def describe_short(args):
     print_spec_summary(spec, spec_path=spec_path, heading="short 요약")
 
 
+def sync_short_assets(args):
+    spec_path, spec = load_spec(args.spec)
+    spec, sync_info = sync_short_assets_impl(
+        spec_path,
+        spec,
+        origin_override=args.origin_srt,
+        context_before_sec=args.context_before,
+        context_after_sec=args.context_after,
+        overwrite_editable=args.force,
+        write_spec=True,
+    )
+
+    print_section("short 자막 워크스페이스 동기화")
+    print(f"spec: {spec_path}")
+    print(f"origin subtitle: {sync_info['origin_srt']}")
+    print(f"원본 보존본: {sync_info['orig_srt_path']}")
+    print(f"수정용 자막: {sync_info['editable_srt_path']}")
+    print(f"editable subtitle 갱신: {'예' if sync_info['editable_written'] else '아니오 (기존 파일 유지)'}")
+    print(f"검토 파일: {sync_info['preview_review_path']}")
+    print(
+        f"검토 범위: {sec_to_clock_label(sync_info['window_start'])} ~ "
+        f"{sec_to_clock_label(sync_info['window_end'])}"
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description="gshorts single-short CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1253,12 +1503,16 @@ def main():
     init_parser = subparsers.add_parser("init-short", help="interactive short spec 생성")
     init_parser.add_argument("--project-dir", help="프로젝트 디렉토리")
     init_parser.add_argument("--spec", help="생성할 spec 파일 경로")
+    init_parser.add_argument("--context-before", type=float, default=DEFAULT_SUBTITLE_CONTEXT_BEFORE_SEC, help="short 워크스페이스용 앞 컨텍스트 초")
+    init_parser.add_argument("--context-after", type=float, default=DEFAULT_SUBTITLE_CONTEXT_AFTER_SEC, help="short 워크스페이스용 뒤 컨텍스트 초")
     init_parser.set_defaults(func=init_short)
 
     draft_parser = subparsers.add_parser("draft-short", help="brief 기반 short spec 초안 생성")
     draft_parser.add_argument("--project-dir", help="프로젝트 디렉토리")
     draft_parser.add_argument("--brief", required=True, help="자연어 편집 brief")
     draft_parser.add_argument("--spec", help="생성할 spec 파일 경로")
+    draft_parser.add_argument("--context-before", type=float, default=DEFAULT_SUBTITLE_CONTEXT_BEFORE_SEC, help="short 워크스페이스용 앞 컨텍스트 초")
+    draft_parser.add_argument("--context-after", type=float, default=DEFAULT_SUBTITLE_CONTEXT_AFTER_SEC, help="short 워크스페이스용 뒤 컨텍스트 초")
     draft_parser.set_defaults(func=draft_short)
 
     build_parser = subparsers.add_parser("build-short", help="short spec 하나를 빌드")
@@ -1283,6 +1537,14 @@ def main():
     describe_parser = subparsers.add_parser("describe-short", help="short spec 요약 보기")
     describe_parser.add_argument("--spec", required=True, help="short spec JSON 경로")
     describe_parser.set_defaults(func=describe_short)
+
+    sync_parser = subparsers.add_parser("sync-short-assets", help="short 폴더용 로컬 subtitle/review 파일 동기화")
+    sync_parser.add_argument("--spec", required=True, help="short spec JSON 경로")
+    sync_parser.add_argument("--origin-srt", help="원본 프로젝트 subtitle.srt 경로 override")
+    sync_parser.add_argument("--context-before", type=float, default=DEFAULT_SUBTITLE_CONTEXT_BEFORE_SEC, help="앞 컨텍스트 초")
+    sync_parser.add_argument("--context-after", type=float, default=DEFAULT_SUBTITLE_CONTEXT_AFTER_SEC, help="뒤 컨텍스트 초")
+    sync_parser.add_argument("--force", action="store_true", help="기존 subtitle.srt도 덮어쓰기")
+    sync_parser.set_defaults(func=sync_short_assets)
 
     args = parser.parse_args()
     args.func(args)
