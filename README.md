@@ -434,6 +434,7 @@ python3 ./scripts/08_make_shorts.py \
 - exact emoji를 자막에 넣어야 하면 `subtitle_renderer: "image"`를 사용한다.
 - `BM Jua` 같은 한글 display font로 `JP` target까지 같이 만들면, `drawtext`에서는 일본어 glyph가 깨질 수 있다. 이 경우 `image` renderer를 쓰거나 `subtitle_font_by_suffix.jp`로 일본어 전용 폰트를 지정한다.
 - 자막 길이가 길어서 화면을 벗어날 수 있으면 `image` renderer를 사용한다. `image` renderer는 카드 폭 기준으로 자동 줄바꿈을 수행한다.
+- `JP`처럼 번역문이 길어지는 target은 `subtitle_y_ratio_by_suffix`, `subtitle_size_delta_by_suffix`, `subtitle_max_width_ratio_by_suffix`로 위치/크기/폭을 따로 조정하면 겹침을 줄이기 쉽다.
 - `drawtext`를 유지한다면 긴 문장은 SRT에서 수동으로 줄바꿈해 둔다.
 - `image` renderer는 설치된 폰트를 이름으로 찾을 때 `Jua`, `BM JUA OTF`, `Nanum Pen Script`처럼 사람이 말하는 이름을 최대한 자동 해석해 해당 폰트 파일을 등록한다. 다만 같은 이름 후보가 여러 개인 경우에는 더 구체적인 이름을 쓰는 것이 안전하다.
 - 반복적으로 쓰는 조합은 `font_profile`로 묶어두고, `subtitle_font` 같은 명시값이 있으면 그 값이 우선한다.
@@ -450,8 +451,18 @@ python3 ./scripts/08_make_shorts.py \
     "subtitle_font_by_suffix": {
       "jp": "Hiragino Maru Gothic ProN"
     },
+    "subtitle_y_ratio": 0.84,
+    "subtitle_y_ratio_by_suffix": {
+      "jp": 0.86
+    },
     "subtitle_size_delta": 2,
-    "subtitle_max_width_ratio": 0.84
+    "subtitle_size_delta_by_suffix": {
+      "jp": -2
+    },
+    "subtitle_max_width_ratio": 0.84,
+    "subtitle_max_width_ratio_by_suffix": {
+      "jp": 0.9
+    }
   }
 }
 ```
@@ -555,7 +566,12 @@ python3 ./scripts/08_make_shorts.py \
 | `subtitle_font_by_suffix` | `{"jp": "Hiragino Maru Gothic ProN"}` 같은 target별 폰트 override |
 | `subtitle_fontfile_by_suffix` | target별 폰트 파일 override |
 | `subtitle_renderer_by_suffix` | target별 렌더러 override |
+| `subtitle_y_ratio` | 자막 세로 위치 비율. `_by_suffix`로 target별 안전영역 조정 가능 |
+| `subtitle_size_delta` | 자막 폰트 크기 보정. `_by_suffix`로 언어별 크기 조정 가능 |
 | `subtitle_max_width_ratio` | `image` renderer 카드 최대 폭 비율 |
+| `subtitle_min_side_margin_px` | 카드 좌우 최소 여백(px). `_by_suffix` 지원 |
+| `subtitle_line_spacing` / `subtitle_box_padding_x` / `subtitle_box_padding_y` | 카드 줄간격/패딩. `_by_suffix` 지원 |
+| `subtitle_autofit_min_font_size` / `subtitle_autofit_step` / `subtitle_autofit_max_attempts` | 자동 축소 튜닝. `_by_suffix` 지원 |
 | `fade_in_sec` / `fade_out_sec` | 최종 결과물 기준 video+audio 공통 fade 길이(초) |
 | `fade_in_start_sec` / `fade_out_start_sec` | 최종 결과물 기준 공통 fade 시작 시각(초) |
 | `video_fade_*` | video만 별도 fade 길이/시각 override |

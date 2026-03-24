@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "short_id": "아왜저래",
+  "brief": "댓글 말투 하나에 집단으로 열받는 리액션이 터지는 구간",
+  "source_video": "/Users/shlee/Developments/gen-shorts/projects/3vpr2w_I4JY/source/와우산TV - 사람이 싫다.mp4",
+  "source_srt": "/Users/shlee/Developments/gen-shorts/projects/3vpr2w_I4JY/shorts/아왜저래/subtitle.srt",
+  "output_dir": "/Users/shlee/Developments/gen-shorts/projects/3vpr2w_I4JY/rendered_shorts/아왜저래",
+  "targets": [
+    {
+      "code": "KR",
+      "suffix": "kr",
+      "language": "ko",
+      "label": "한국어 (KR)",
+      "country_name": "South Korea",
+      "use_original_subtitle": true
+    },
+    {
+      "code": "US",
+      "suffix": "us",
+      "language": "en",
+      "label": "English (US)",
+      "country_name": "United States"
+    },
+    {
+      "code": "JP",
+      "suffix": "jp",
+      "language": "ja",
+      "label": "日本語 (JP)",
+      "country_name": "Japan"
+    }
+  ],
+  "include_nosub": true,
+  "publish": {
+    "title": "아 왜 저래",
+    "description": "댓글 말투 하나에 집단으로 열받는 리액션이 터지는 구간",
+    "tags": [
+      "와우산TV",
+      "사람이싫다",
+      "쇼츠",
+      "댓글",
+      "말투"
+    ]
+  },
+  "review": {
+    "requires_confirmation": true,
+    "estimated_duration_sec": 17.54,
+    "estimated_duration_label": "00:18",
+    "warnings": [],
+    "subtitle_source_origin": "../../subtitle.srt",
+    "subtitle_context_before_sec": 0.0,
+    "subtitle_context_after_sec": 0.0
+  },
+  "clip": {
+    "start": "00:28:11.020",
+    "duration": "00:00:17.540",
+    "crop": "0~10",
+    "output_name": "아 왜 저래.mp4"
+  },
+  "format": {
+    "preset": "clean_fullbleed",
+    "font_profile": "cute_multilingual",
+    "subtitle_renderer": "image",
+    "subtitle_font": "Jua",
+    "subtitle_font_by_suffix": {
+      "jp": "Hiragino Maru Gothic ProN"
+    },
+    "subtitle_y_ratio": 0.85,
+    "subtitle_size_delta": -20,
+    "subtitle_size_delta_by_suffix": {
+      "jp": -24
+    },
+    "subtitle_max_width_ratio": 0.8,
+    "subtitle_max_width_ratio_by_suffix": {
+      "jp": 0.84
+    },
+    "subtitle_min_side_margin_px": 120,
+    "subtitle_autofit_min_font_size": 18,
+    "subtitle_autofit_step": 1,
+    "subtitle_line_spacing": 4,
+    "subtitle_box_padding_x": 24,
+    "subtitle_box_padding_y": 14,
+    "fade_in_sec": 0.35,
+    "fade_out_sec": 0.8,
+    "title": "아 왜 저래"
+  },
+  "subtitle_tracks": [
+    {
+      "suffix": "nosub",
+      "label": "자막 없음"
+    },
+    {
+      "suffix": "kr",
+      "label": "한국어 (KR)",
+      "srt": "/Users/shlee/Developments/gen-shorts/projects/3vpr2w_I4JY/shorts/아왜저래/subtitle.srt"
+    },
+    {
+      "suffix": "us",
+      "label": "English (US)",
+      "srt": "/Users/shlee/Developments/gen-shorts/projects/3vpr2w_I4JY/shorts/아왜저래/subtitle_en.srt"
+    },
+    {
+      "suffix": "jp",
+      "label": "日本語 (JP)",
+      "srt": "/Users/shlee/Developments/gen-shorts/projects/3vpr2w_I4JY/shorts/아왜저래/subtitle_ja.srt"
+    }
+  ]
+}

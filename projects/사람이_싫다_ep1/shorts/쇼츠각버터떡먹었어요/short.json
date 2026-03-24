@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "short_id": "쇼츠각버터떡먹었어요",
+  "brief": "쇼츠각을 묻다가 버터떡 먹었어요 밈을 따라 하는 짧은 구간",
+  "source_video": "../../source/와우산TV - 사람이 싫다.mp4",
+  "source_srt": "./subtitle.srt",
+  "output_dir": "../../rendered_shorts/쇼츠각버터떡먹었어요",
+  "targets": [
+    "KR",
+    "US",
+    "JP"
+  ],
+  "include_nosub": true,
+  "review": {
+    "requires_confirmation": true,
+    "estimated_duration_sec": 6.48,
+    "estimated_duration_label": "00:00:06.480",
+    "warnings": [],
+    "subtitle_source_origin": "../../subtitle.srt",
+    "subtitle_context_before_sec": 0.0,
+    "subtitle_context_after_sec": 0.0
+  },
+  "publish": {
+    "title": "쇼츠각 버터떡 먹었어요",
+    "description": "쇼츠각을 묻다가 버터떡 먹었어요 밈을 따라 하는 짧은 구간",
+    "tags": [
+      "와우산TV",
+      "사람이싫다",
+      "쇼츠",
+      "버터떡",
+      "쇼츠각"
+    ]
+  },
+  "clip": {
+    "start": "01:24:38.610",
+    "duration": "00:00:06.480",
+    "crop": "0~10",
+    "output_name": "쇼츠각 버터떡 먹었어요.mp4"
+  },
+  "format": {
+    "preset": "clean_fullbleed",
+    "font_profile": "cute_multilingual",
+    "subtitle_renderer": "image",
+    "subtitle_font": "Jua",
+    "subtitle_font_by_suffix": {
+      "jp": "Hiragino Maru Gothic ProN"
+    },
+    "subtitle_y_ratio": 0.85,
+    "subtitle_size_delta": -20,
+    "subtitle_size_delta_by_suffix": {
+      "jp": -24
+    },
+    "subtitle_max_width_ratio": 0.8,
+    "subtitle_max_width_ratio_by_suffix": {
+      "jp": 0.84
+    },
+    "subtitle_min_side_margin_px": 120,
+    "subtitle_autofit_min_font_size": 18,
+    "subtitle_autofit_step": 1,
+    "subtitle_line_spacing": 4,
+    "subtitle_box_padding_x": 24,
+    "subtitle_box_padding_y": 14,
+    "fade_in_sec": 0.35,
+    "fade_out_sec": 0.8
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "tracks": [
+    {
+      "suffix": "nosub",
+      "label": "자막 없음"
+    },
+    {
+      "suffix": "kr",
+      "label": "한국어 (KR)",
+      "srt": "/Users/shlee/Developments/gen-shorts/projects/3vpr2w_I4JY/shorts/욕대신끙/subtitle.srt"
+    },
+    {
+      "suffix": "us",
+      "label": "English (US)",
+      "srt": "/Users/shlee/Developments/gen-shorts/projects/3vpr2w_I4JY/shorts/욕대신끙/subtitle_en.srt"
+    },
+    {
+      "suffix": "jp",
+      "label": "日本語 (JP)",
+      "srt": "/Users/shlee/Developments/gen-shorts/projects/3vpr2w_I4JY/shorts/욕대신끙/subtitle_ja.srt"
+    }
+  ]
+}

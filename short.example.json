@@ -48,6 +48,16 @@
     "subtitle_font_by_suffix": {
       "jp": "Hiragino Maru Gothic ProN"
     },
-    "subtitle_max_width_ratio": 0.84
+    "subtitle_y_ratio": 0.84,
+    "subtitle_y_ratio_by_suffix": {
+      "jp": 0.86
+    },
+    "subtitle_size_delta_by_suffix": {
+      "jp": -2
+    },
+    "subtitle_max_width_ratio": 0.84,
+    "subtitle_max_width_ratio_by_suffix": {
+      "jp": 0.9
+    }
   }
 }

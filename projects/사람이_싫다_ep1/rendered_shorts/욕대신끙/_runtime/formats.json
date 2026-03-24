@@ -1,0 +1,32 @@
+{
+  "clips": [
+    {
+      "preset": "clean_fullbleed",
+      "font_profile": "cute_multilingual",
+      "subtitle_renderer": "image",
+      "subtitle_font": "Jua",
+      "subtitle_font_by_suffix": {
+        "jp": "Hiragino Maru Gothic ProN"
+      },
+      "subtitle_y_ratio": 0.85,
+      "subtitle_size_delta": -20,
+      "subtitle_size_delta_by_suffix": {
+        "jp": -24
+      },
+      "subtitle_max_width_ratio": 0.8,
+      "subtitle_max_width_ratio_by_suffix": {
+        "jp": 0.84
+      },
+      "subtitle_min_side_margin_px": 120,
+      "subtitle_autofit_min_font_size": 18,
+      "subtitle_autofit_step": 1,
+      "subtitle_line_spacing": 4,
+      "subtitle_box_padding_x": 24,
+      "subtitle_box_padding_y": 14,
+      "fade_in_sec": 0.35,
+      "fade_out_sec": 0.8,
+      "title": "욕 대신 끙",
+      "name": "욕 대신 끙.mp4"
+    }
+  ]
+}

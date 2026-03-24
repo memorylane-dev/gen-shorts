@@ -437,6 +437,42 @@ def parse_non_negative_float(value, field_name):
     return parsed
 
 
+def parse_int(value, field_name):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise SystemExit(f"{field_name}는 정수여야 합니다: {value}")
+
+
+def parse_non_negative_int(value, field_name):
+    parsed = parse_int(value, field_name)
+    if parsed < 0:
+        raise SystemExit(f"{field_name}는 0 이상이어야 합니다: {value}")
+    return parsed
+
+
+def parse_float(value, field_name):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise SystemExit(f"{field_name}는 숫자여야 합니다: {value}")
+
+
+def normalize_suffix_override_map(raw_map, field_name, normalize_value):
+    if raw_map is None:
+        return None
+    if not isinstance(raw_map, dict):
+        raise SystemExit(f"{field_name}는 객체여야 합니다.")
+
+    normalized = {}
+    for raw_suffix, raw_value in raw_map.items():
+        suffix = str(raw_suffix).strip()
+        if not suffix or raw_value is None:
+            continue
+        normalized[suffix] = normalize_value(raw_value, f"{field_name}.{suffix}")
+    return normalized
+
+
 def resolve_fade_param(format_options, specific_key, shared_key, default_value):
     value = format_options.get(specific_key)
     source_key = specific_key
@@ -710,10 +746,26 @@ def normalize_format_entry(entry, base_dir, fallback_preset):
             data[key] = str(data[key]).strip()
 
     if data.get("subtitle_size_delta") is not None:
-        data["subtitle_size_delta"] = int(data["subtitle_size_delta"])
+        data["subtitle_size_delta"] = parse_int(data["subtitle_size_delta"], "subtitle_size_delta")
+
+    if data.get("subtitle_y_ratio") is not None:
+        data["subtitle_y_ratio"] = parse_float(data["subtitle_y_ratio"], "subtitle_y_ratio")
 
     if data.get("subtitle_max_width_ratio") is not None:
-        data["subtitle_max_width_ratio"] = float(data["subtitle_max_width_ratio"])
+        data["subtitle_max_width_ratio"] = parse_float(data["subtitle_max_width_ratio"], "subtitle_max_width_ratio")
+
+    for key in (
+        "subtitle_min_side_margin_px",
+        "subtitle_autofit_min_font_size",
+        "subtitle_autofit_step",
+        "subtitle_autofit_max_attempts",
+        "subtitle_line_spacing",
+        "subtitle_box_padding_x",
+        "subtitle_box_padding_y",
+        "subtitle_corner_radius",
+    ):
+        if data.get(key) is not None:
+            data[key] = parse_non_negative_int(data[key], key)
 
     for key in (
         "fade_in_sec",
@@ -816,6 +868,26 @@ def normalize_format_entry(entry, base_dir, fallback_preset):
             normalized[suffix] = font_path
         data["subtitle_fontfile_by_suffix"] = normalized
 
+    for field_name, normalizer in (
+        ("subtitle_align_by_suffix", lambda value, _: str(value).strip()),
+        ("subtitle_box_color_by_suffix", lambda value, _: str(value).strip()),
+        ("subtitle_text_color_by_suffix", lambda value, _: str(value).strip()),
+        ("subtitle_size_delta_by_suffix", parse_int),
+        ("subtitle_y_ratio_by_suffix", parse_float),
+        ("subtitle_max_width_ratio_by_suffix", parse_float),
+        ("subtitle_min_side_margin_px_by_suffix", parse_non_negative_int),
+        ("subtitle_autofit_min_font_size_by_suffix", parse_non_negative_int),
+        ("subtitle_autofit_step_by_suffix", parse_non_negative_int),
+        ("subtitle_autofit_max_attempts_by_suffix", parse_non_negative_int),
+        ("subtitle_line_spacing_by_suffix", parse_non_negative_int),
+        ("subtitle_box_padding_x_by_suffix", parse_non_negative_int),
+        ("subtitle_box_padding_y_by_suffix", parse_non_negative_int),
+        ("subtitle_corner_radius_by_suffix", parse_non_negative_int),
+    ):
+        normalized = normalize_suffix_override_map(data.get(field_name), field_name, normalizer)
+        if normalized is not None:
+            data[field_name] = normalized
+
     return data
 
 
@@ -889,8 +961,20 @@ def apply_track_format_overrides(format_options, suffix):
         "subtitle_font",
         "subtitle_fontfile",
         "subtitle_renderer",
+        "subtitle_align",
+        "subtitle_box_color",
+        "subtitle_text_color",
         "subtitle_size_delta",
+        "subtitle_y_ratio",
         "subtitle_max_width_ratio",
+        "subtitle_min_side_margin_px",
+        "subtitle_autofit_min_font_size",
+        "subtitle_autofit_step",
+        "subtitle_autofit_max_attempts",
+        "subtitle_line_spacing",
+        "subtitle_box_padding_x",
+        "subtitle_box_padding_y",
+        "subtitle_corner_radius",
     ):
         map_key = f"{key}_by_suffix"
         overrides = merged.get(map_key)
