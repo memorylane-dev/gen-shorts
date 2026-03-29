@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Albamon Cards Report</title>
+  <style>
+    :root {
+      --bg: #07111b;
+      --panel: rgba(16, 30, 46, 0.94);
+      --panel-2: rgba(22, 42, 62, 0.84);
+      --accent: #52b3ff;
+      --accent-soft: rgba(82, 179, 255, 0.14);
+      --text: #f4f8fb;
+      --muted: rgba(244, 248, 251, 0.72);
+      --border: rgba(255, 255, 255, 0.08);
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.36);
+      --chip: rgba(255, 255, 255, 0.06);
+      --selected: rgba(93, 211, 158, 0.18);
+      --selected-border: rgba(93, 211, 158, 0.5);
+      --danger: #ff8b8b;
+      --font: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background:
+      radial-gradient(circle at top left, rgba(82,179,255,0.18), transparent 28%),
+      radial-gradient(circle at bottom right, rgba(255,169,77,0.12), transparent 22%),
+      var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+    }
+
+    body {
+      padding: 28px;
+    }
+
+    .shell {
+      max-width: 1440px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    .sidebar,
+    .content {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 26px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 20px;
+      padding: 22px;
+    }
+
+    .content {
+      padding: 22px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    h1 {
+      margin: 14px 0 8px;
+      font-size: 34px;
+      line-height: 1.1;
+    }
+
+    .lede,
+    .hint,
+    .summary,
+    .command {
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .section-title {
+      margin: 22px 0 10px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .field {
+      margin-bottom: 12px;
+    }
+
+    .field label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      font: inherit;
+      outline: none;
+    }
+
+    .field input:focus,
+    .field select:focus {
+      border-color: rgba(82, 179, 255, 0.6);
+      box-shadow: 0 0 0 4px rgba(82, 179, 255, 0.14);
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .toggle input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+    }
+
+    .button-row {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font: inherit;
+      cursor: pointer;
+      color: #06121c;
+      background: var(--accent);
+      font-weight: 700;
+    }
+
+    button.secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    button.ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px dashed var(--border);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .stat {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 24px;
+      margin-top: 6px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .empty {
+      padding: 40px 24px;
+      text-align: center;
+      border: 1px dashed var(--border);
+      border-radius: 22px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .card {
+      position: relative;
+      overflow: hidden;
+      border-radius: 24px;
+      padding: 18px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.02)),
+        rgba(18, 30, 46, 0.9);
+      border: 1px solid var(--border);
+      transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(82, 179, 255, 0.35);
+    }
+
+    .card.is-selected {
+      background:
+        linear-gradient(180deg, rgba(93,211,158,0.08), rgba(93,211,158,0.03)),
+        rgba(18, 30, 46, 0.96);
+      border-color: var(--selected-border);
+      box-shadow: inset 0 0 0 1px rgba(93,211,158,0.18);
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 6px;
+      background: linear-gradient(180deg, var(--accent), rgba(82,179,255,0.2));
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .badge {
+      display: inline-flex;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .company {
+      margin: 0 0 6px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .title {
+      margin: 0 0 16px;
+      font-size: 26px;
+      line-height: 1.22;
+      letter-spacing: -0.02em;
+    }
+
+    .pay-box {
+      padding: 14px;
+      border-radius: 18px;
+      background: var(--accent-soft);
+      border: 1px solid rgba(82, 179, 255, 0.18);
+      margin-bottom: 14px;
+    }
+
+    .pay-box .label,
+    .meta-label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .pay-value {
+      font-size: 30px;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1.1;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .meta-box {
+      padding: 12px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.05);
+      min-height: 90px;
+    }
+
+    .meta-value {
+      font-size: 16px;
+      line-height: 1.35;
+      word-break: keep-all;
+      white-space: pre-line;
+    }
+
+    .detail-box {
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.04);
+      margin-bottom: 14px;
+      min-height: 132px;
+    }
+
+    .detail-row + .detail-row {
+      margin-top: 12px;
+    }
+
+    .detail-value {
+      font-size: 18px;
+      line-height: 1.45;
+      white-space: pre-line;
+      word-break: keep-all;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .chip {
+      display: inline-flex;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: var(--chip);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: auto;
+    }
+
+    .card-actions a,
+    .card-actions button {
+      flex: 1;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    .card-actions a {
+      padding: 11px 12px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--text);
+      border: 1px solid var(--border);
+      font-weight: 700;
+    }
+
+    .command {
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px dashed var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .note {
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(255, 139, 139, 0.08);
+      border: 1px solid rgba(255, 139, 139, 0.18);
+      color: rgba(255, 229, 229, 0.92);
+      line-height: 1.5;
+    }
+
+    @media (max-width: 1100px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        position: static;
+      }
+    }
+
+    @media (max-width: 720px) {
+      body { padding: 16px; }
+      .content, .sidebar { padding: 16px; border-radius: 20px; }
+      h1 { font-size: 28px; }
+      .title { font-size: 22px; }
+      .stats { grid-template-columns: 1fr; }
+      .meta-grid { grid-template-columns: 1fr; }
+      .card-actions { flex-direction: column; }
+      .card-actions a, .card-actions button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <span class="eyebrow">Internal Report</span>
+      <h1>카드 목록 필터</h1>
+      <p class="lede">먼저 목록을 좁혀보고, 필터 결과나 선택된 카드만 JSON으로 내려받아 1초 템포 쇼츠로 렌더할 수 있습니다.</p>
+
+      <div class="section-title">검색</div>
+      <div class="field">
+        <label for="query">통합 검색</label>
+        <input id="query" type="text" placeholder="제목, 회사, 지역, 직무 검색">
+      </div>
+      <div class="field">
+        <label for="area">대표 지역</label>
+        <select id="area"></select>
+      </div>
+      <div class="field">
+        <label for="payType">급여 타입</label>
+        <select id="payType"></select>
+      </div>
+      <div class="field">
+        <label for="part">직무</label>
+        <select id="part"></select>
+      </div>
+      <div class="field">
+        <label for="company">회사명 검색</label>
+        <input id="company" type="text" placeholder="브랜드/회사명">
+      </div>
+      <div class="field">
+        <label for="sort">정렬</label>
+        <select id="sort">
+          <option value="latest">최신순 유지</option>
+          <option value="pay">금액 높은순</option>
+          <option value="title">제목 가나다순</option>
+          <option value="company">회사명 가나다순</option>
+        </select>
+      </div>
+
+      <label class="toggle">
+        <input id="selectedOnly" type="checkbox">
+        <span>선택한 카드만 보기</span>
+      </label>
+
+      <div class="button-row">
+        <button id="downloadFiltered">필터 결과 JSON 다운로드</button>
+        <button id="downloadSelected" class="secondary">선택 카드 JSON 다운로드</button>
+        <button id="resetSelection" class="ghost">선택 초기화</button>
+      </div>
+
+      <div class="section-title">렌더 힌트</div>
+      <div class="command" id="renderCommand"></div>
+
+      <div class="section-title">안내</div>
+      <div class="summary" id="reportSummary"></div>
+
+      <div class="note">이 리포트는 메타데이터 기반 내부 참고용입니다. 원문 세부 내용은 링크로 다시 확인하세요.</div>
+    </aside>
+
+    <main class="content">
+      <div class="stats">
+        <div class="stat">
+          <div class="summary">전체 카드</div>
+          <strong id="totalCount">0</strong>
+        </div>
+        <div class="stat">
+          <div class="summary">필터 결과</div>
+          <strong id="filteredCount">0</strong>
+        </div>
+        <div class="stat">
+          <div class="summary">선택 카드</div>
+          <strong id="selectedCount">0</strong>
+        </div>
+      </div>
+
+      <div class="hint" id="activeFilters"></div>
+      <div class="grid" id="cardsGrid"></div>
+      <div class="empty" id="emptyState" hidden>조건에 맞는 카드가 없습니다. 필터를 완화해보세요.</div>
+    </main>
+  </div>
+
+  <script>
+    const REPORT_META = {"generated_at": "2026-03-29T23:32:50", "jobs_json_path": "/Users/shlee/Developments/gen-shorts/projects/albamon_cards_test10/jobs.json", "selection_storage_key": "albamon_cards::/Users/shlee/Developments/gen-shorts/projects/albamon_cards_test10/jobs.json", "source": {"listing_url": "https://www.albamon.com/jobs/total", "search_period_type": "WITHIN_THREE_DAYS", "sort_type": "POSTED_DATE"}, "job_count": 10, "area_options": ["경기", "경남", "대구", "부산", "서울", "인천"], "pay_type_options": ["시급", "월급"], "part_options": ["놀이공원·테마파크", "렌탈관리·A/S", "매장관리·판매", "매장관리·판매 기타", "바(bar)", "바리스타", "서비스 기타", "서빙", "오프라인영업·판매", "일반음식점", "캐셔·카운터", "커피전문점", "패밀리레스토랑", "패스트푸드점", "편의점"], "render_command_hint": "python3 scripts/albamon_cards.py render --jobs-json <filtered_jobs.json> --segment-duration 1.0"};
+    const JOBS = [{"recruit_no": 115537878, "page": 1, "title": "컴포즈커피 청라제일풍경채점 평일 채용(미들)", "company_name": "컴포즈커피 청라제일풍경채점", "posted_date": "11분전", "posted_minutes_ago": 11, "pay_type": "시급", "pay": "10,320원", "pay_amount": 10320, "pay_summary": "시급 10,320원", "workplace_area": "인천 서구 청라동", "area_primary": "인천", "working_time": "시간협의", "working_week": "요일협의", "working_period": "6개월~1년", "working_summary": "요일협의 · 시간협의", "closing_date": "2026-03-31 (마감일 2일전)", "parts": ["바리스타", "커피전문점", "캐셔·카운터"], "parts_summary": "바리스타, 커피전문점, 캐셔·카운터", "detail_url": "https://www.albamon.com/jobs/detail/115537878", "sort_index": 0}, {"recruit_no": 115505723, "page": 1, "title": "컴포즈커피 해운대백병원 일월 또는 월화", "company_name": "컴포즈커피 해운대백병원점", "posted_date": "11분전", "posted_minutes_ago": 11, "pay_type": "시급", "pay": "10,500원", "pay_amount": 10500, "pay_summary": "시급 10,500원", "workplace_area": "부산 해운대구", "area_primary": "부산", "working_time": "시간협의", "working_week": "요일협의", "working_period": "1년이상", "working_summary": "요일협의 · 시간협의", "closing_date": "2026-04-05 (마감일 7일전)", "parts": ["바리스타", "커피전문점", "캐셔·카운터"], "parts_summary": "바리스타, 커피전문점, 캐셔·카운터", "detail_url": "https://www.albamon.com/jobs/detail/115505723", "sort_index": 1}, {"recruit_no": 115601469, "page": 1, "title": "이마트24율하안일점 월화 저녁타임 구합니다", "company_name": "율하안일점", "posted_date": "11분전", "posted_minutes_ago": 11, "pay_type": "시급", "pay": "10,320원", "pay_amount": 10320, "pay_summary": "시급 10,320원", "workplace_area": "대구 동구 율하동", "area_primary": "대구", "working_time": "19:00~01:00 (익일)", "working_week": "주2일", "working_period": "3개월~6개월", "working_summary": "주2일 · 19:00~01:00 (익일)", "closing_date": "2026-04-03 (마감일 5일전)", "parts": ["매장관리·판매", "캐셔·카운터", "편의점"], "parts_summary": "매장관리·판매, 캐셔·카운터, 편의점", "detail_url": "https://www.albamon.com/jobs/detail/115601469", "sort_index": 2}, {"recruit_no": 115564029, "page": 1, "title": "마장동김씨인계점 홀 주5일 직원 구합니다", "company_name": "마장동김씨 수원인계점", "posted_date": "11분전", "posted_minutes_ago": 11, "pay_type": "시급", "pay": "13,000원", "pay_amount": 13000, "pay_summary": "시급 13,000원", "workplace_area": "경기 수원시 팔달구 인계동", "area_primary": "경기", "working_time": "시간협의", "working_week": "요일협의", "working_period": "6개월~1년", "working_summary": "요일협의 · 시간협의", "closing_date": "상시모집", "parts": ["서빙", "일반음식점", "패밀리레스토랑"], "parts_summary": "서빙, 일반음식점, 패밀리레스토랑", "detail_url": "https://www.albamon.com/jobs/detail/115564029", "sort_index": 3}, {"recruit_no": 115596725, "page": 1, "title": "나를 찾는 시간 제2의 전성기는 sk매직 진접지국에서", "company_name": "진접지국", "posted_date": "11분전", "posted_minutes_ago": 11, "pay_type": "월급", "pay": "2,700,000원", "pay_amount": 2700000, "pay_summary": "월급 2,700,000원", "workplace_area": "경기 남양주시", "area_primary": "경기", "working_time": "시간협의", "working_week": "요일협의", "working_period": "1년이상", "working_summary": "요일협의 · 시간협의", "closing_date": "상시모집", "parts": ["렌탈관리·A/S", "서비스 기타", "오프라인영업·판매"], "parts_summary": "렌탈관리·A/S, 서비스 기타, 오프라인영업·판매", "detail_url": "https://www.albamon.com/jobs/detail/115596725", "sort_index": 4}, {"recruit_no": 115636539, "page": 1, "title": "역삼동 모던바 새단장/ 급여 최고로 맞춰드려요/ 시간보장", "company_name": "831에스티", "posted_date": "12분전", "posted_minutes_ago": 12, "pay_type": "시급", "pay": "80,000원", "pay_amount": 80000, "pay_summary": "시급 80,000원", "workplace_area": "서울 강남구 역삼동", "area_primary": "서울", "working_time": "시간협의", "working_week": "요일협의", "working_period": "6개월~1년", "working_summary": "요일협의 · 시간협의", "closing_date": "상시모집", "parts": ["바(bar)"], "parts_summary": "바(bar)", "detail_url": "https://www.albamon.com/jobs/detail/115636539", "sort_index": 5}, {"recruit_no": 115607496, "page": 1, "title": "감탄포차 주말 알바 구해요~~", "company_name": "감탄포차", "posted_date": "12분전", "posted_minutes_ago": 12, "pay_type": "시급", "pay": "12,000원", "pay_amount": 12000, "pay_summary": "시급 12,000원", "workplace_area": "경남 창원시 성산구", "area_primary": "경남", "working_time": "19:00~00:00 (익일)", "working_week": "주2일", "working_period": "6개월~1년", "working_summary": "주2일 · 19:00~00:00 (익일)", "closing_date": "상시모집", "parts": ["서빙"], "parts_summary": "서빙", "detail_url": "https://www.albamon.com/jobs/detail/115607496", "sort_index": 6}, {"recruit_no": 115585804, "page": 1, "title": "노브랜드버거 부천소풍점에서 함께 일하실 경력 있으신 분 모집해요.", "company_name": "노브랜드버거 부천소풍점", "posted_date": "12분전", "posted_minutes_ago": 12, "pay_type": "시급", "pay": "10,320원", "pay_amount": 10320, "pay_summary": "시급 10,320원", "workplace_area": "경기 부천시 상동", "area_primary": "경기", "working_time": "시간협의", "working_week": "요일협의", "working_period": "6개월~1년", "working_summary": "요일협의 · 시간협의", "closing_date": "상시모집", "parts": ["패스트푸드점"], "parts_summary": "패스트푸드점", "detail_url": "https://www.albamon.com/jobs/detail/115585804", "sort_index": 7}, {"recruit_no": 115654868, "page": 1, "title": "메가커피 인천약산초교점(간석오거리역2번출구)근무자모집합니다.", "company_name": "메가MGC커피(인천약산초교점)", "posted_date": "12분전", "posted_minutes_ago": 12, "pay_type": "시급", "pay": "10,320원", "pay_amount": 10320, "pay_summary": "시급 10,320원", "workplace_area": "인천 남동구 간석동", "area_primary": "인천", "working_time": "시간협의", "working_week": "요일협의", "working_period": "6개월~1년", "working_summary": "요일협의 · 시간협의", "closing_date": "상시모집", "parts": ["바리스타", "커피전문점", "캐셔·카운터"], "parts_summary": "바리스타, 커피전문점, 캐셔·카운터", "detail_url": "https://www.albamon.com/jobs/detail/115654868", "sort_index": 8}, {"recruit_no": 115648555, "page": 1, "title": "서울랜드 팝콘 스낵매점 판매 .평일 /주말 .직원및 아르바이트 모집합니다", "company_name": "골드메달", "posted_date": "12분전", "posted_minutes_ago": 12, "pay_type": "시급", "pay": "12,500원", "pay_amount": 12500, "pay_summary": "시급 12,500원", "workplace_area": "경기 군포시", "area_primary": "경기", "working_time": "시간협의", "working_week": "요일협의", "working_period": "1개월~3개월", "working_summary": "요일협의 · 시간협의", "closing_date": "상시모집", "parts": ["매장관리·판매", "매장관리·판매 기타", "놀이공원·테마파크"], "parts_summary": "매장관리·판매, 매장관리·판매 기타, 놀이공원·테마파크", "detail_url": "https://www.albamon.com/jobs/detail/115648555", "sort_index": 9}];
+
+    const state = {
+      query: "",
+      area: "",
+      payType: "",
+      part: "",
+      company: "",
+      sort: "latest",
+      selectedOnly: false,
+    };
+
+    const selectedIds = new Set(JSON.parse(localStorage.getItem(REPORT_META.selection_storage_key) || "[]"));
+
+    const els = {
+      query: document.getElementById("query"),
+      area: document.getElementById("area"),
+      payType: document.getElementById("payType"),
+      part: document.getElementById("part"),
+      company: document.getElementById("company"),
+      sort: document.getElementById("sort"),
+      selectedOnly: document.getElementById("selectedOnly"),
+      cardsGrid: document.getElementById("cardsGrid"),
+      emptyState: document.getElementById("emptyState"),
+      totalCount: document.getElementById("totalCount"),
+      filteredCount: document.getElementById("filteredCount"),
+      selectedCount: document.getElementById("selectedCount"),
+      renderCommand: document.getElementById("renderCommand"),
+      reportSummary: document.getElementById("reportSummary"),
+      activeFilters: document.getElementById("activeFilters"),
+      downloadFiltered: document.getElementById("downloadFiltered"),
+      downloadSelected: document.getElementById("downloadSelected"),
+      resetSelection: document.getElementById("resetSelection"),
+    };
+
+    function saveSelection() {
+      localStorage.setItem(REPORT_META.selection_storage_key, JSON.stringify(Array.from(selectedIds)));
+    }
+
+    function fillSelect(select, options, placeholder) {
+      select.innerHTML = "";
+      const empty = document.createElement("option");
+      empty.value = "";
+      empty.textContent = placeholder;
+      select.appendChild(empty);
+      for (const option of options) {
+        const node = document.createElement("option");
+        node.value = option;
+        node.textContent = option;
+        select.appendChild(node);
+      }
+    }
+
+    function normalizeText(value) {
+      return String(value || "").toLowerCase().trim();
+    }
+
+    function jobMatches(job) {
+      const haystack = [
+        job.title,
+        job.company_name,
+        job.workplace_area,
+        job.pay_summary,
+        job.working_summary,
+        job.parts_summary,
+      ].join(" ").toLowerCase();
+
+      if (state.query && !haystack.includes(state.query)) return false;
+      if (state.area && normalizeText(job.area_primary) !== state.area) return false;
+      if (state.payType && normalizeText(job.pay_type) !== state.payType) return false;
+      if (state.part) {
+        const partHaystack = (job.parts || []).join(" ").toLowerCase();
+        if (!partHaystack.includes(state.part)) return false;
+      }
+      if (state.company && !normalizeText(job.company_name).includes(state.company)) return false;
+      if (state.selectedOnly && !selectedIds.has(job.recruit_no)) return false;
+      return true;
+    }
+
+    function sortJobs(items) {
+      const next = items.slice();
+      if (state.sort === "pay") {
+        next.sort((a, b) => (b.pay_amount || 0) - (a.pay_amount || 0) || (a.sort_index || 0) - (b.sort_index || 0));
+      } else if (state.sort === "title") {
+        next.sort((a, b) => (a.title || "").localeCompare(b.title || "", "ko"));
+      } else if (state.sort === "company") {
+        next.sort((a, b) => (a.company_name || "").localeCompare(b.company_name || "", "ko"));
+      } else {
+        next.sort((a, b) => (a.sort_index || 0) - (b.sort_index || 0));
+      }
+      return next;
+    }
+
+    function getFilteredJobs() {
+      return sortJobs(JOBS.filter(jobMatches));
+    }
+
+    function formatFilterSummary() {
+      const chips = [];
+      if (state.query) chips.push(`검색: ${state.query}`);
+      if (state.area) chips.push(`지역: ${state.area}`);
+      if (state.payType) chips.push(`급여: ${state.payType}`);
+      if (state.part) chips.push(`직무: ${state.part}`);
+      if (state.company) chips.push(`회사: ${state.company}`);
+      if (state.selectedOnly) chips.push("선택 카드만");
+      if (!chips.length) return "현재는 전체 카드가 보입니다.";
+      return chips.join(" / ");
+    }
+
+    function renderCommandHint() {
+      const args = [`python3 scripts/albamon_cards.py render --jobs-json "${REPORT_META.jobs_json_path}" --segment-duration 1.0`];
+      if (state.query) args.push(`--query "${state.query}"`);
+      if (state.area) args.push(`--area "${state.area}"`);
+      if (state.payType) args.push(`--pay-type "${state.payType}"`);
+      if (state.part) args.push(`--part "${state.part}"`);
+      if (state.company) args.push(`--company "${state.company}"`);
+      if (state.selectedOnly && selectedIds.size > 0) {
+        for (const id of Array.from(selectedIds).slice(0, 12)) {
+          args.push(`--job-id ${id}`);
+        }
+        if (selectedIds.size > 12) args.push(`# 나머지 ID도 추가`);
+      }
+      return args.join(" ");
+    }
+
+    function downloadJobs(filenamePrefix, jobs, mode) {
+      const payload = {
+        exported_at: new Date().toISOString(),
+        export_mode: mode,
+        source: REPORT_META.source,
+        source_jobs_json_path: REPORT_META.jobs_json_path,
+        filter_snapshot: {
+          query: state.query,
+          area: state.area,
+          pay_type: state.payType,
+          part: state.part,
+          company: state.company,
+          selected_only: state.selectedOnly,
+          selected_ids: Array.from(selectedIds),
+        },
+        job_count: jobs.length,
+        jobs,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${filenamePrefix}_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function renderCards() {
+      const filteredJobs = getFilteredJobs();
+      const selectedJobs = JOBS.filter(job => selectedIds.has(job.recruit_no));
+      els.cardsGrid.innerHTML = "";
+      els.totalCount.textContent = String(JOBS.length);
+      els.filteredCount.textContent = String(filteredJobs.length);
+      els.selectedCount.textContent = String(selectedJobs.length);
+      els.reportSummary.textContent = `수집 시각: ${REPORT_META.generated_at || "-"} / JSON: ${REPORT_META.jobs_json_path}`;
+      els.activeFilters.textContent = formatFilterSummary();
+      els.renderCommand.textContent = renderCommandHint();
+
+      if (!filteredJobs.length) {
+        els.emptyState.hidden = false;
+        return;
+      }
+
+      els.emptyState.hidden = true;
+
+      for (const job of filteredJobs) {
+        const card = document.createElement("article");
+        card.className = "card";
+        if (selectedIds.has(job.recruit_no)) card.classList.add("is-selected");
+
+        const chips = [job.area_primary, job.pay_type, job.posted_date].filter(Boolean)
+          .map(value => `<span class="chip">${value}</span>`).join("");
+
+        card.innerHTML = `
+          <div class="card-head">
+            <span class="badge">ID ${job.recruit_no}</span>
+            <span class="badge">${(job.sort_index || 0) + 1}번째</span>
+          </div>
+          <p class="company">${escapeHtml(job.company_name)}</p>
+          <h2 class="title">${escapeHtml(job.title)}</h2>
+          <div class="pay-box">
+            <span class="label">급여</span>
+            <div class="pay-value">${escapeHtml(job.pay_summary || "급여 정보 없음")}</div>
+          </div>
+          <div class="meta-grid">
+            <div class="meta-box">
+              <span class="meta-label">근무지</span>
+              <div class="meta-value">${escapeHtml(job.workplace_area || "-")}</div>
+            </div>
+            <div class="meta-box">
+              <span class="meta-label">시간</span>
+              <div class="meta-value">${escapeHtml(job.working_time || "-")}</div>
+            </div>
+            <div class="meta-box">
+              <span class="meta-label">등록</span>
+              <div class="meta-value">${escapeHtml(job.posted_date || "-")}</div>
+            </div>
+          </div>
+          <div class="detail-box">
+            <div class="detail-row">
+              <span class="meta-label">직무</span>
+              <div class="detail-value">${escapeHtml(job.parts_summary || "직무 정보 없음")}</div>
+            </div>
+            <div class="detail-row">
+              <span class="meta-label">기간/마감</span>
+              <div class="detail-value">${escapeHtml([job.working_period, job.working_week, job.closing_date].filter(Boolean).join(" · ") || "-")}</div>
+            </div>
+          </div>
+          <div class="chips">${chips}</div>
+          <div class="card-actions">
+            <button type="button" class="secondary select-button">${selectedIds.has(job.recruit_no) ? "선택 해제" : "선택"}</button>
+            <a href="${job.detail_url}" target="_blank" rel="noreferrer">상세 열기</a>
+          </div>
+        `;
+
+        card.querySelector(".select-button").addEventListener("click", () => {
+          if (selectedIds.has(job.recruit_no)) {
+            selectedIds.delete(job.recruit_no);
+          } else {
+            selectedIds.add(job.recruit_no);
+          }
+          saveSelection();
+          renderCards();
+        });
+
+        els.cardsGrid.appendChild(card);
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function syncState() {
+      state.query = normalizeText(els.query.value);
+      state.area = normalizeText(els.area.value);
+      state.payType = normalizeText(els.payType.value);
+      state.part = normalizeText(els.part.value);
+      state.company = normalizeText(els.company.value);
+      state.sort = els.sort.value;
+      state.selectedOnly = els.selectedOnly.checked;
+      renderCards();
+    }
+
+    function init() {
+      fillSelect(els.area, REPORT_META.area_options, "전체 지역");
+      fillSelect(els.payType, REPORT_META.pay_type_options, "전체 급여 타입");
+      fillSelect(els.part, REPORT_META.part_options, "전체 직무");
+
+      [els.query, els.area, els.payType, els.part, els.company, els.sort, els.selectedOnly].forEach((node) => {
+        node.addEventListener("input", syncState);
+        node.addEventListener("change", syncState);
+      });
+
+      els.downloadFiltered.addEventListener("click", () => {
+        downloadJobs("albamon_filtered_jobs", getFilteredJobs(), "filtered");
+      });
+
+      els.downloadSelected.addEventListener("click", () => {
+        const selected = JOBS.filter(job => selectedIds.has(job.recruit_no));
+        downloadJobs("albamon_selected_jobs", selected, "selected");
+      });
+
+      els.resetSelection.addEventListener("click", () => {
+        selectedIds.clear();
+        saveSelection();
+        renderCards();
+      });
+
+      renderCards();
+    }
+
+    init();
+  </script>
+</body>
+</html>

@@ -180,6 +180,83 @@ spec의 주요 필드:
 - `clip`: 메인 clip start / duration / crop
 - `format`: preset, on-screen title, secondary clip 정보
 
+## Albamon Card Shorts (Internal)
+
+원본 공고 이미지/본문을 재배포하지 않고, **목록 메타데이터만** 사용해 내부 참고용 카드형 쇼츠를 만들 수 있다.
+
+- 입력: 최근 3일 + 최신등록순 공고 목록
+- 사용 필드: 제목, 회사명, 급여, 근무지, 근무시간, 등록시각, 마감
+- 출력: 세로형 `mp4` + `jobs.json` + `cards.html` + `selected_jobs.txt`
+
+### 1. 목록 수집 + 카드 필터 리포트 생성
+
+```bash
+python3 scripts/albamon_cards.py fetch \
+  --max-pages 5 \
+  --max-items 20
+```
+
+생성물:
+
+- `jobs.json`: 수집된 공고 메타데이터 원본
+- `cards.html`: 로컬 브라우저에서 열어 카드 목록을 보고 필터링하는 리포트
+- `selected_jobs.txt`: 선택된 공고 링크/요약용 텍스트
+
+`cards.html`에서는 아래가 가능하다.
+
+- 통합 검색: 제목, 회사명, 지역, 직무
+- 지역 / 급여 타입 / 직무 / 회사명 필터
+- 선택 카드만 보기
+- 필터 결과 JSON 다운로드
+- 선택 카드 JSON 다운로드
+
+### 2. 필터된 카드로 1초 템포 쇼츠 렌더
+
+CLI 필터로 바로 렌더:
+
+```bash
+python3 scripts/albamon_cards.py render \
+  --jobs-json /tmp/albamon_cards_fetch/jobs.json \
+  --query 커피 \
+  --segment-duration 1.0
+```
+
+또는 `cards.html`에서 내려받은 필터 결과 JSON을 그대로 넣어도 된다:
+
+```bash
+python3 scripts/albamon_cards.py render \
+  --jobs-json /path/to/filtered_jobs.json \
+  --segment-duration 1.0
+```
+
+기본값은 카드 1장당 `1.0초`이며, 결과 영상은 `albamon_recent_cards.mp4`로 저장된다.
+
+### 3. 한 번에 수집 + 필터 + 렌더
+
+```bash
+python3 scripts/albamon_cards.py build \
+  --max-pages 5 \
+  --max-items 10 \
+  --query 커피 \
+  --segment-duration 1.0
+```
+
+수집 단계 키워드 포함/제외:
+
+```bash
+python3 scripts/albamon_cards.py build \
+  --keyword 커피 \
+  --keyword 바리스타 \
+  --exclude-keyword 재택
+```
+
+주의:
+
+- 내부 참고용으로만 사용 권장
+- 공고 원문 이미지/본문은 사용하지 않음
+- 상세 링크와 원본 확인 정보는 생성되는 `jobs.json` / `selected_jobs.txt`에 저장됨
+- 브라우저에서 고른 결과를 쓰고 싶다면 `cards.html`에서 JSON을 내려받아 `render --jobs-json`에 넣으면 됨
+
 ### 링크를 줄 때 같이 주면 좋은 정보
 
 유튜브 링크만 있어도 시작할 수 있지만, 아래를 함께 주면 추천 품질이 좋아진다.

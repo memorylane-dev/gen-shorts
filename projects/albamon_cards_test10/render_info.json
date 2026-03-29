@@ -1,0 +1,23 @@
+{
+  "rendered_at": "2026-03-29T23:32:57",
+  "fontfile": "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+  "segment_duration_sec": 1.0,
+  "fps": 30,
+  "item_count": 10,
+  "jobs_json": "/Users/shlee/Developments/gen-shorts/projects/albamon_cards_test10/jobs.json",
+  "video": "/Users/shlee/Developments/gen-shorts/projects/albamon_cards_test10/albamon_recent_cards.mp4",
+  "source": {
+    "listing_url": "https://www.albamon.com/jobs/total",
+    "search_period_type": "WITHIN_THREE_DAYS",
+    "sort_type": "POSTED_DATE"
+  },
+  "filter_context": {
+    "query": "",
+    "exclude_query": "",
+    "area": "",
+    "company": "",
+    "pay_type": "",
+    "part": "",
+    "job_ids": []
+  }
+}
