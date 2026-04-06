@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "short_id": "3_진짜대박인데요",
+  "brief": "재즈는 노잼이라는 농담으로 시작해서 마지막에 해외 쇼폼감이라고 닫히는 웃긴 쇼츠. KR, US 타겟, 자막 없는 버전도 포함",
+  "source_video": "../../source/video.mp4",
+  "source_srt": "./subtitle.srt",
+  "output_dir": "../../rendered_shorts/3_진짜대박인데요",
+  "targets": [
+    "KR",
+    "US"
+  ],
+  "include_nosub": true,
+  "publish": {
+    "title": "진짜대박인데요",
+    "description": "재즈는 노잼이라는 농담으로 시작해서 마지막에 해외 쇼폼감이라고 닫히는 웃긴 쇼츠. KR, US 타겟, 자막 없는 버전도 포함",
+    "notes": "brief 기반 자동 초안"
+  },
+  "clip": {
+    "start": "00:57:12",
+    "duration": "00:00:35",
+    "crop": "0~10",
+    "output_name": "3_진짜대박인데요.mp4"
+  },
+  "format": {
+    "preset": "clean_fullbleed",
+    "title": "진짜대박인데요"
+  },
+  "review": {
+    "auto_selected": true,
+    "primary_clip_score": 2,
+    "secondary_clip_score": null,
+    "requires_confirmation": true,
+    "estimated_duration_sec": 35.0,
+    "estimated_duration_label": "00:35",
+    "warnings": [
+      "자동 추천 초안입니다. 메인/보조 clip, preset, target을 확인하세요."
+    ],
+    "subtitle_source_origin": "../../subtitle.srt",
+    "subtitle_context_before_sec": 15.0,
+    "subtitle_context_after_sec": 15.0
+  }
+}

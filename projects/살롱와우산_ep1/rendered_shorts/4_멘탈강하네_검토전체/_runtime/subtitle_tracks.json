@@ -1,0 +1,14 @@
+{
+  "tracks": [
+    {
+      "suffix": "kr",
+      "label": "한국어 (KR)",
+      "srt": "/Users/shlee/development/gshorts/projects/살롱와우산_ep1/shorts/4_멘탈강하네_검토전체/subtitle.srt"
+    },
+    {
+      "suffix": "us",
+      "label": "English (US)",
+      "srt": "/Users/shlee/development/gshorts/projects/살롱와우산_ep1/shorts/4_멘탈강하네_검토전체/subtitle_en.srt"
+    }
+  ]
+}

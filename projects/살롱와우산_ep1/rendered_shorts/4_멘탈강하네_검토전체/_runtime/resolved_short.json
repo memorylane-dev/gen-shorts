@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "short_id": "4_멘탈강하네_검토전체",
+  "brief": "4번 후보의 검토 범위 전체를 사용해 긴장된 표정과 웃음, 멘탈이 강해진 이야기를 묶는 KR/US 숏폼",
+  "source_video": "/Users/shlee/development/gshorts/projects/살롱와우산_ep1/source/video.mp4",
+  "source_srt": "/Users/shlee/development/gshorts/projects/살롱와우산_ep1/shorts/4_멘탈강하네_검토전체/subtitle.srt",
+  "output_dir": "/Users/shlee/development/gshorts/projects/살롱와우산_ep1/rendered_shorts/4_멘탈강하네_검토전체",
+  "targets": [
+    {
+      "code": "KR",
+      "suffix": "kr",
+      "language": "ko",
+      "label": "한국어 (KR)",
+      "country_name": "South Korea",
+      "use_original_subtitle": true
+    },
+    {
+      "code": "US",
+      "suffix": "us",
+      "language": "en",
+      "label": "English (US)",
+      "country_name": "United States"
+    }
+  ],
+  "include_nosub": false,
+  "publish": {
+    "title": "멘탈 강하네",
+    "description": "무서운 눈빛인데 웃고 있었다는 이야기에서 멘탈이 강해진 이유까지 이어지는 장면",
+    "notes": "사용자 요청: 4번 후보의 검토 범위 전체 사용"
+  },
+  "review": {
+    "requires_confirmation": true,
+    "estimated_duration_sec": 70.0,
+    "estimated_duration_label": "01:10",
+    "warnings": [
+      "예상 길이 01:10로 권장 길이 00:35를 넘습니다."
+    ],
+    "subtitle_source_origin": "../../subtitle.srt",
+    "subtitle_context_before_sec": 0.0,
+    "subtitle_context_after_sec": 0.0
+  },
+  "clip": {
+    "start": "01:21:48",
+    "duration": "00:01:10",
+    "crop": "0~10",
+    "output_name": "4_멘탈강하네_검토전체.mp4"
+  },
+  "format": {
+    "preset": "clean_fullbleed",
+    "title": "멘탈 강하네"
+  },
+  "subtitle_tracks": [
+    {
+      "suffix": "kr",
+      "label": "한국어 (KR)",
+      "srt": "/Users/shlee/development/gshorts/projects/살롱와우산_ep1/shorts/4_멘탈강하네_검토전체/subtitle.srt"
+    },
+    {
+      "suffix": "us",
+      "label": "English (US)",
+      "srt": "/Users/shlee/development/gshorts/projects/살롱와우산_ep1/shorts/4_멘탈강하네_검토전체/subtitle_en.srt"
+    }
+  ]
+}
